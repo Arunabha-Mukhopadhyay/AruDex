@@ -26,3 +26,21 @@ async function readReserves() {
   console.log("Timestamp:", blockTimestampLast.toString());
 }
 readReserves();
+
+
+const SushiSwap_FactoryAddress = "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"
+
+async function poolSushiSwap(){
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const factory = new ethers.Contract(SushiSwap_FactoryAddress, factoryAbi, provider);
+
+  const pairAddress = await factory.getPair(WETH, USDC);
+  console.log("Pair:", pairAddress);
+
+  const pair = new ethers.Contract(pairAddress, pairAbi, provider);
+  const [reserve0, reserve1, blockTimestampLast] = await pair.getReserves();
+  console.log("Reserve0:", reserve0.toString());
+  console.log("Reserve1:", reserve1.toString());
+  console.log("Timestamp:", blockTimestampLast.toString());
+}
+poolSushiSwap()
