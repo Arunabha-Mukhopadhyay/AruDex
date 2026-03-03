@@ -23,9 +23,9 @@ export async function readReserves() {
 
   const pair = new ethers.Contract(pairAddress, pairAbi, provider);
   const [reserve0, reserve1, blockTimestampLast] = await pair.getReserves();
-  console.log("Reserve0:", reserve0.toString());
-  console.log("Reserve1:", reserve1.toString());
-  console.log("Timestamp:", blockTimestampLast.toString());
+  console.log("Reserve0_uniswap:", reserve0.toString());
+  console.log("Reserve1_uniswap:", reserve1.toString());
+  console.log("Timestamp_uniswap:", blockTimestampLast.toString());
 
   const token0 = await pair.token0();
   console.log("Token0_uniswap:", token0);
@@ -52,14 +52,14 @@ export async function poolSushiSwap(){
 
   const pair = new ethers.Contract(pairAddress, pairAbi, provider);
   const [reserve0, reserve1, blockTimestampLast] = await pair.getReserves();
-  //console.log("Reserve0:", reserve0.toString());
-  //console.log("Reserve1:", reserve1.toString());
-  //console.log("Timestamp:", blockTimestampLast.toString());
+  console.log("Reserve0_sushi:", reserve0.toString());
+  console.log("Reserve1_sushi:", reserve1.toString());
+  console.log("Timestamp_sushi:", blockTimestampLast.toString());
 
   const token0 = await pair.token0();
-  //console.log("Token0_sushi:", token0);
+  console.log("Token0_sushi:", token0);
   const token1 = await pair.token1();
-  //console.log("Token1_sushi:", token1);
+  console.log("Token1_sushi:", token1);
 
   return{
     reserve0,
