@@ -15,6 +15,81 @@ const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
+
+async function poolReserves(FactoryAddress, Token0, Token1){
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+  const factory = new ethers.Contract(FactoryAddress,factoryAbi,provider);
+
+  const pairAddress = await factory.getPair(Token0, Token1);
+  console.log("Pair:", pairAddress);
+
+  const pair = new ethers.Contract(pairAddress, pairAbi, provider);
+  const [reserve0, reserve1, blockTimestampLast] = await pair.getReserves();
+  // console.log("Reserve0:", ethers.formatUnits(reserve0,6));
+  // console.log("Reserve1:", ethers.formatEther(reserve1));
+  // console.log("Timestamp:", blockTimestampLast.toString());
+
+  const token0 = await pair.token0();
+  //console.log("Token0:", token0);
+  const token1 = await pair.token1();
+  //console.log("Token1:", token1);
+
+
+  const getDecimals = (token) => {
+    if (token === USDC) return 6;
+    return 18; 
+  };
+
+  console.log(
+    "Reserve0:",
+    ethers.formatUnits(reserve0, getDecimals(token0)),
+    "| token0:",
+    token0
+  );
+
+  console.log(
+    "Reserve1:",
+    ethers.formatUnits(reserve1, getDecimals(token1)),
+    "| token1:",
+    token1
+  );
+
+  console.log("Timestamp:", blockTimestampLast.toString());
+
+  return{
+    reserve0,
+    reserve1,
+    token0,
+    token1,
+    blockTimestampLast
+  }
+}
+
+
+export async function uni_eth_usdc_pool(){
+  return poolReserves(factory_address, WETH, USDC)
+} 
+uni_eth_usdc_pool()
+
+export async function sushi_eth_usdc_pool(){
+  return poolReserves(SushiSwap_FactoryAddress, WETH, USDC)
+}
+sushi_eth_usdc_pool()
+
+export async function Weth_Dai_pool(){
+  return poolReserves(factory_address, WETH, DAI)
+}
+
+export async function Dai_Usdc_pool(){
+  return poolReserves(factory_address, DAI, USDC)
+}
+
+Weth_Dai_pool()
+Dai_Usdc_pool()
+
+
+
+// for testting purpose and understanding the pool reserves logs:
 export async function readReserves() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const factory = new ethers.Contract(factory_address, factoryAbi, provider);
@@ -41,7 +116,7 @@ export async function readReserves() {
     blockTimestampLast
   }
 }
-readReserves();
+//readReserves();
 
 
 export async function poolSushiSwap(){
@@ -70,9 +145,7 @@ export async function poolSushiSwap(){
     blockTimestampLast
   }
 }
-poolSushiSwap()
-
-
+//poolSushiSwap()
 
 
 export async function DAI_USDC_pool() {
@@ -102,7 +175,7 @@ export async function DAI_USDC_pool() {
     blockTimestampLast
   }
 }
-DAI_USDC_pool()
+//DAI_USDC_pool()
 
 
 export async function Weth_DAI_pool(){
@@ -132,4 +205,4 @@ export async function Weth_DAI_pool(){
     blockTimestampLast
   }
 }
-Weth_DAI_pool()
+//Weth_DAI_pool()
