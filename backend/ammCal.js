@@ -81,8 +81,8 @@ function binaryBestSplit(totalAmount, uniPool, sushiPool) {
 
 
 async function ammCalculation() {
-  const amountIn = ethers.parseEther('1'); // 1 ETH
-  const oneEth = 20n * 10n ** 18n;
+  const amountIn = ethers.parseEther('1'); // 1 ETH for single-pool quote
+  const oneEth = 20n * 10n ** 18n; // 20 ETH for split + multihop demo
   const uni = await uni_eth_usdc_pool();
   const sushi = await sushi_eth_usdc_pool();
 
@@ -90,8 +90,6 @@ async function ammCalculation() {
   const dai_usdc = await Dai_Usdc_pool();
 
   const amountOut_MultiHop = await Multi_Hop(oneEth,dai,dai_usdc);
-  console.log("Multi Hop Output:", ethers.formatUnits(amountOut_MultiHop,6));
-
 
   const uniAmountOut = getAmountOut(amountIn, uni.reserve1, uni.reserve0);
   const sushiAmountOut = getAmountOut(amountIn, sushi.reserve1, sushi.reserve0);
@@ -99,35 +97,51 @@ async function ammCalculation() {
   const AmountOutUni = simulateSwap(oneEth, uni.reserve1, uni.reserve0);
   const AmountOutSushi = simulateSwap(oneEth, sushi.reserve1, sushi.reserve0);
 
-
   const spotPrice_Uni = ethers.formatUnits(uni.reserve0,6) / ethers.formatUnits(uni.reserve1,18);
 
   const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
   const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
 
   const result = binaryBestSplit(oneEth, uni, sushi);
-  
-  console.log("Uniswap USDC/WETH:", ethers.formatUnits(uniAmountOut,6));
-  console.log("Sushiswap USDC/WETH:", ethers.formatUnits(sushiAmountOut,6));
-  console.log("USDC_Uni out:", ethers.formatUnits(AmountOutUni,6));
-  console.log("USDC_SUSHI out:", ethers.formatUnits(AmountOutSushi,6)); // Slippage at 10 eth 
 
-  console.log("Spot price Uniswap:", spotPrice_Uni);
-  console.log("Execution price Uniswap:", executionPrice_Uni);
-  console.log("Slippage Uniswap:", Slippage_Uni);
-
-  console.log(
-   "Uniswap Input:",
-   ethers.formatEther(result.uniInput),
-   "ETH",
-
-   "Sushi Input:",
-   ethers.formatEther(result.sushiInput),
-   "ETH",
-
-   "Total USDC Output:",
-   ethers.formatUnits(result.bestOutput, 6)
-  );
+  return {
+    inputs: {
+      singleQuoteEth: "1",
+      splitAndMultiHopEth: "20",
+    },
+    multiHop: {
+      path: "WETH -> DAI -> USDC",
+      outputUsdc: ethers.formatUnits(amountOut_MultiHop, 6),
+    },
+    directQuotes: {
+      uniswap_outUsdc_for1Eth: ethers.formatUnits(uniAmountOut, 6),
+      sushiswap_outUsdc_for1Eth: ethers.formatUnits(sushiAmountOut, 6),
+    },
+    execution: {
+      uniswap_outUsdc_for20Eth: ethers.formatUnits(AmountOutUni, 6),
+      sushiswap_outUsdc_for20Eth: ethers.formatUnits(AmountOutSushi, 6),
+      spotPrice_uniswap_usdcPerEth: spotPrice_Uni,
+      executionPrice_uniswap_usdcFor1Eth: executionPrice_Uni,
+      slippage_uniswap_percent_for1Eth: Slippage_Uni,
+    },
+    bestSplit: {
+      uniswapInputEth: ethers.formatEther(result.uniInput),
+      sushiswapInputEth: ethers.formatEther(result.sushiInput),
+      totalOutputUsdc: ethers.formatUnits(result.bestOutput, 6),
+    },
+  };
 }
 
-ammCalculation();
+export async function runAmmCalculation() {
+  return ammCalculation();
+}
+
+// CLI mode (keeps your current behavior if you run `node ammCal.js`)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  ammCalculation()
+    .then((r) => console.log(JSON.stringify(r, null, 2)))
+    .catch((e) => {
+      console.error(e);
+      process.exitCode = 1;
+    });
+}

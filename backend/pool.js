@@ -69,12 +69,10 @@ async function poolReserves(FactoryAddress, Token0, Token1){
 export async function uni_eth_usdc_pool(){
   return poolReserves(factory_address, WETH, USDC)
 } 
-uni_eth_usdc_pool()
 
 export async function sushi_eth_usdc_pool(){
   return poolReserves(SushiSwap_FactoryAddress, WETH, USDC)
 }
-sushi_eth_usdc_pool()
 
 export async function Weth_Dai_pool(){
   return poolReserves(factory_address, WETH, DAI)
@@ -84,10 +82,7 @@ export async function Dai_Usdc_pool(){
   return poolReserves(factory_address, DAI, USDC)
 }
 
-Weth_Dai_pool()
-Dai_Usdc_pool()
-
-
+// Note: don't auto-run on import; callers should invoke explicitly.
 
 // for testting purpose and understanding the pool reserves logs:
 export async function readReserves() {

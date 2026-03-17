@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Intent DEX Aggregator (Demo UI)</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1>Intent DEX Aggregator</h1>
+        <p class="sub">
+          Simple frontend for your current backend logic (Uniswap/Sushi, WETH/DAI/USDC).
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="row">
+          <button id="runBtn">Run Simulation</button>
+          <span id="status" class="status">Idle</span>
+        </div>
+        <p class="hint">
+          This calls <code>/api/amm</code> and renders the JSON output.
+        </p>
+      </section>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Readable Summary</h2>
+          <div id="summary" class="mono muted">No data yet.</div>
+        </div>
+        <div class="card">
+          <h2>Raw JSON</h2>
+          <pre id="json" class="pre muted">No data yet.</pre>
+        </div>
+      </section>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
+
