@@ -1,18 +1,18 @@
 import { ethers } from "ethers";
 // import { poolSushiSwap, readReserves, Weth_DAI_pool, DAI_USDC_pool } from "./pool.js";
-import { uni_eth_usdc_pool , sushi_eth_usdc_pool, Weth_Dai_pool, Dai_Usdc_pool, Weth_DAI_pool } from "./pool.js";
+import { uni_eth_usdc_pool, sushi_eth_usdc_pool, Weth_Dai_pool, Dai_Usdc_pool, Weth_DAI_pool } from "./pool.js";
 
 function getAmountOut(amountIn, reserveIn, reserveOut) {
-  return  (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
-}
-
-function simulateSwap(amountIn,reserveIn, reserveOut) {
   return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
 }
 
-async function Multi_Hop(amountIn,pool1,pool2){
-  const amountOut_1 = simulateSwap(amountIn,pool1.reserve1,pool1.reserve0);
-  const amountOut_2 = simulateSwap(amountOut_1,pool2.reserve0,pool2.reserve1);
+function simulateSwap(amountIn, reserveIn, reserveOut) {
+  return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
+}
+
+async function Multi_Hop(amountIn, pool1, pool2) {
+  const amountOut_1 = simulateSwap(amountIn, pool1.reserve1, pool1.reserve0);
+  const amountOut_2 = simulateSwap(amountOut_1, pool2.reserve0, pool2.reserve1);
   const totalOutput = amountOut_2;
   return totalOutput;
 }
@@ -80,7 +80,7 @@ function binaryBestSplit(totalAmount, uniPool, sushiPool) {
 //   (reserveIn * 1000 + amountIn * 997);
 
 
-async function ammCalculation() {
+export async function ammCalculation() {
   const amountIn = ethers.parseEther('1'); // 1 ETH
   const oneEth = 20n * 10n ** 18n;
   const uni = await uni_eth_usdc_pool();
@@ -89,8 +89,8 @@ async function ammCalculation() {
   const dai = await Weth_DAI_pool();
   const dai_usdc = await Dai_Usdc_pool();
 
-  const amountOut_MultiHop = await Multi_Hop(oneEth,dai,dai_usdc);
-  console.log("Multi Hop Output:", ethers.formatUnits(amountOut_MultiHop,6));
+  const amountOut_MultiHop = await Multi_Hop(oneEth, dai, dai_usdc);
+  //console.log("Multi Hop Output:", ethers.formatUnits(amountOut_MultiHop, 6));
 
 
   const uniAmountOut = getAmountOut(amountIn, uni.reserve1, uni.reserve0);
@@ -99,35 +99,51 @@ async function ammCalculation() {
   const AmountOutUni = simulateSwap(oneEth, uni.reserve1, uni.reserve0);
   const AmountOutSushi = simulateSwap(oneEth, sushi.reserve1, sushi.reserve0);
 
-
-  const spotPrice_Uni = ethers.formatUnits(uni.reserve0,6) / ethers.formatUnits(uni.reserve1,18);
-
+  const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
   const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
   const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
 
   const result = binaryBestSplit(oneEth, uni, sushi);
+
+  // console.log("Uniswap USDC/WETH:", ethers.formatUnits(uniAmountOut, 6));
+  // console.log("Sushiswap USDC/WETH:", ethers.formatUnits(sushiAmountOut, 6));
+  // console.log("USDC_Uni out:", ethers.formatUnits(AmountOutUni, 6));
+  // console.log("USDC_SUSHI out:", ethers.formatUnits(AmountOutSushi, 6)); // Slippage at 10 eth 
+
   
-  console.log("Uniswap USDC/WETH:", ethers.formatUnits(uniAmountOut,6));
-  console.log("Sushiswap USDC/WETH:", ethers.formatUnits(sushiAmountOut,6));
-  console.log("USDC_Uni out:", ethers.formatUnits(AmountOutUni,6));
-  console.log("USDC_SUSHI out:", ethers.formatUnits(AmountOutSushi,6)); // Slippage at 10 eth 
+  // console.log("Spot price Uniswap:", spotPrice_Uni);
+  // console.log("Execution price Uniswap:", executionPrice_Uni);
+  // console.log("Slippage Uniswap:", Slippage_Uni);
 
-  console.log("Spot price Uniswap:", spotPrice_Uni);
-  console.log("Execution price Uniswap:", executionPrice_Uni);
-  console.log("Slippage Uniswap:", Slippage_Uni);
 
-  console.log(
-   "Uniswap Input:",
-   ethers.formatEther(result.uniInput),
-   "ETH",
+  // console.log(
+  //   "Uniswap Input:",
+  //   ethers.formatEther(result.uniInput),
+  //   "ETH",
 
-   "Sushi Input:",
-   ethers.formatEther(result.sushiInput),
-   "ETH",
+  //   "Sushi Input:",
+  //   ethers.formatEther(result.sushiInput),
+  //   "ETH",
 
-   "Total USDC Output:",
-   ethers.formatUnits(result.bestOutput, 6)
-  );
+  //   "Total USDC Output:",
+  //   ethers.formatUnits(result.bestOutput, 6)
+  // );
+
+  return {
+    multiHopOutput: ethers.formatUnits(amountOut_MultiHop, 6),
+    uniswap: {
+      usdcWeth: ethers.formatUnits(uniAmountOut, 6),
+      usdcOut: ethers.formatUnits(AmountOutUni, 6),
+      spotPrice: spotPrice_Uni,
+      executionPrice: executionPrice_Uni,
+      slippage: Slippage_Uni,
+      inputEth: ethers.formatEther(result.uniInput),
+    },
+    sushiswap: {
+      usdcWeth: ethers.formatUnits(sushiAmountOut, 6),
+      usdcOut: ethers.formatUnits(AmountOutSushi, 6),
+      inputEth: ethers.formatEther(result.sushiInput),
+    },
+    totalUsdcOutput: ethers.formatUnits(result.bestOutput, 6),
+  };
 }
-
-ammCalculation();

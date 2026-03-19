@@ -1,6 +1,7 @@
 import { WagmiProvider, useAccount, useConnect, useDisconnect } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { config } from "./Config";
+import Simulation from "./pages/Simulation";
 
 const queryClient = new QueryClient();
 
@@ -41,7 +42,7 @@ function App() {
    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
           <WalletConnector />
-
+          <Simulation />
       </QueryClientProvider>
    </WagmiProvider>
   )
