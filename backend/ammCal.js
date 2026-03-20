@@ -80,9 +80,10 @@ function binaryBestSplit(totalAmount, uniPool, sushiPool) {
 //   (reserveIn * 1000 + amountIn * 997);
 
 
-export async function ammCalculation() {
-  const amountIn = ethers.parseEther('1'); // 1 ETH
-  const oneEth = 20n * 10n ** 18n;
+export const ammCalculation = async(req) => {
+  const { amount, oneEth: oneEthStr } = req.body;
+  const amountIn = ethers.parseEther(amount);
+  const oneEth = ethers.parseEther(oneEthStr);
   const uni = await uni_eth_usdc_pool();
   const sushi = await sushi_eth_usdc_pool();
 

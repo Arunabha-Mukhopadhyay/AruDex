@@ -8,9 +8,9 @@ app.use(cors());
 app.use(express.json())
 
 
-app.get('/api/amm', async (req, res) => {
+app.post('/api/amm', async (req, res) => {
   try {
-    const result = await ammCalculation();
+    const result = await ammCalculation(req);
     res.json({ ok: true, result });
   } catch (error) {
     return res.status(404).json({ ok: false, error: error.message });
