@@ -2,6 +2,21 @@ import { ethers } from "ethers";
 // import { poolSushiSwap, readReserves, Weth_DAI_pool, DAI_USDC_pool } from "./pool.js";
 import { uni_eth_usdc_pool, sushi_eth_usdc_pool, Weth_Dai_pool, Dai_Usdc_pool, Weth_DAI_pool } from "./pool.js";
 
+const serializePoolLog = (label, pool) => {
+  if (!pool) {
+    return { label, error: "pool data unavailable" };
+  }
+
+  return {
+    label,
+    token0: pool.token0,
+    token1: pool.token1,
+    reserve0: pool.reserve0?.toString(),
+    reserve1: pool.reserve1?.toString(),
+    blockTimestampLast: pool.blockTimestampLast?.toString(),
+  };
+};
+
 function getAmountOut(amountIn, reserveIn, reserveOut) {
   return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
 }
@@ -130,7 +145,14 @@ export const ammCalculation = async(req) => {
   //   ethers.formatUnits(result.bestOutput, 6)
   // );
 
-  return {
+  const poolLogs = {
+    uniswapEthUsdc: serializePoolLog("UNISWAP_ETH_USDC", uni),
+    sushiswapEthUsdc: serializePoolLog("SUSHISWAP_ETH_USDC", sushi),
+    wethDai: serializePoolLog("UNISWAP_WETH_DAI", dai),
+    daiUsdc: serializePoolLog("UNISWAP_DAI_USDC", dai_usdc),
+  };
+
+  const ammLogs = {
     multiHopOutput: ethers.formatUnits(amountOut_MultiHop, 6),
     uniswap: {
       usdcWeth: ethers.formatUnits(uniAmountOut, 6),
@@ -147,4 +169,6 @@ export const ammCalculation = async(req) => {
     },
     totalUsdcOutput: ethers.formatUnits(result.bestOutput, 6),
   };
+
+  return { poolLogs, ammLogs };
 }
