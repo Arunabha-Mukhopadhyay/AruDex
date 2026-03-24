@@ -56,6 +56,7 @@ async function poolReserves(FactoryAddress, Token0, Token1){
 
   console.log("Timestamp:", blockTimestampLast.toString());
 
+
   return{
     reserve0,
     reserve1,
@@ -66,26 +67,57 @@ async function poolReserves(FactoryAddress, Token0, Token1){
 }
 
 
-export async function uni_eth_usdc_pool(){
-  return poolReserves(factory_address, WETH, USDC)
-} 
-uni_eth_usdc_pool()
+// export async function uni_eth_usdc_pool(){
+//   return poolReserves(factory_address, WETH, USDC)
+// } 
+// //uni_eth_usdc_pool()
 
-export async function sushi_eth_usdc_pool(){
-  return poolReserves(SushiSwap_FactoryAddress, WETH, USDC)
+// export async function sushi_eth_usdc_pool(){
+//   return poolReserves(SushiSwap_FactoryAddress, WETH, USDC)
+// }
+// //sushi_eth_usdc_pool()
+
+// export async function Weth_Dai_pool(){
+//   return poolReserves(factory_address, WETH, DAI)
+// }
+
+// export async function sushi_Weth_Dai_pool(){
+//   return poolReserves(SushiSwap_FactoryAddress,WETH,DAI)
+// }
+
+// export async function Dai_Usdc_pool(){
+//   return poolReserves(factory_address, DAI, USDC)
+// }
+
+// export async function sushi_Dai_Usdc_pool(){
+//   // console.log(`Sushi swap DAI/USDC output`)
+//   return poolReserves(SushiSwap_FactoryAddress, DAI,USDC);
+// }
+
+
+// Weth_Dai_pool()
+// sushi_Weth_Dai_pool()
+
+// Dai_Usdc_pool()
+// sushi_Dai_Usdc_pool()
+
+
+
+export async function getAll_POOL_Logs() {
+  return {
+    uniswapEthUsdc: await poolReserves(factory_address, WETH, USDC),
+    sushiswapEthUsdc: await poolReserves(SushiSwap_FactoryAddress, WETH, USDC),
+    wethDai: await poolReserves(factory_address, WETH, DAI),
+    sushiWethDai: await poolReserves(SushiSwap_FactoryAddress, WETH, DAI),
+    daiUsdc: await poolReserves(factory_address, DAI, USDC),
+    sushiDaiUsdc: await poolReserves(SushiSwap_FactoryAddress, DAI, USDC),
+  };
 }
-sushi_eth_usdc_pool()
+getAll_POOL_Logs()
 
-export async function Weth_Dai_pool(){
-  return poolReserves(factory_address, WETH, DAI)
-}
 
-export async function Dai_Usdc_pool(){
-  return poolReserves(factory_address, DAI, USDC)
-}
 
-Weth_Dai_pool()
-Dai_Usdc_pool()
+
 
 
 
