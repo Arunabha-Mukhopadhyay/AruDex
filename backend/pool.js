@@ -15,9 +15,9 @@ const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
+const provider = new ethers.JsonRpcProvider(RPC_URL);
 
 async function poolReserves(FactoryAddress, Token0, Token1){
-  const provider = new ethers.JsonRpcProvider(RPC_URL);
   const factory = new ethers.Contract(FactoryAddress,factoryAbi,provider);
 
   const pairAddress = await factory.getPair(Token0, Token1);
@@ -40,29 +40,49 @@ async function poolReserves(FactoryAddress, Token0, Token1){
     return 18; 
   };
 
-  console.log(
-    "Reserve0:",
-    ethers.formatUnits(reserve0, getDecimals(token0)),
-    "| token0:",
-    token0
-  );
+  // console.log(
+  //   "Reserve0:",
+  //   ethers.formatUnits(reserve0, getDecimals(token0)),
+  //   "| token0:",
+  //   token0
+  // );
 
-  console.log(
-    "Reserve1:",
-    ethers.formatUnits(reserve1, getDecimals(token1)),
-    "| token1:",
-    token1
-  );
+  // console.log(
+  //   "Reserve1:",
+  //   ethers.formatUnits(reserve1, getDecimals(token1)),
+  //   "| token1:",
+  //   token1
+  // );
 
-  console.log("Timestamp:", blockTimestampLast.toString());
+  // console.log("Timestamp:", blockTimestampLast.toString());
 
+  const dex = FactoryAddress === factory_address ? 'uniswap' : 'sushiswap'  
 
-  return{
-    reserve0,
-    reserve1,
+  //stale logic:
+  const currentBlock = await provider.getBlock("latest");
+  const now = currentBlock.timestamp;
+  const timestamp = Number(blockTimestampLast);
+
+  const BLOCK_TIME = 12;
+  const MAX_BLOCKS = 50;
+
+  const isStale = (now - timestamp) > (BLOCK_TIME * MAX_BLOCKS);
+
+  if (isStale) {
+    console.log(`WARNING: ${dex} pool is STALE`);
+  }
+
+  return {
+    // reserve0: reserve0.toString(),   
+    // reserve1: reserve1.toString(),   
+    reserve0: reserve0,
+    reserve1: reserve1,
     token0,
     token1,
-    blockTimestampLast
+    blockTimestampLast: blockTimestampLast.toString(), 
+
+    dex,
+    isStale
   }
 }
 
@@ -113,7 +133,14 @@ export async function getAll_POOL_Logs() {
     sushiDaiUsdc: await poolReserves(SushiSwap_FactoryAddress, DAI, USDC),
   };
 }
-getAll_POOL_Logs()
+getAll_POOL_Logs().then((data)=>{
+  console.log(
+    JSON.stringify(data, (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value,
+      2
+    )
+  );
+})
 
 
 

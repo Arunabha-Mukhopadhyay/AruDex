@@ -8,20 +8,27 @@ function Simulation() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const fetchData = async() => {
-    const res = await axios.post('http://localhost:3000/api/amm', { amount, oneEth })
-      .then((res) => {
-        if (!res.data) {
-          throw new Error("No data returned from API");
-        }
-        setData(res.data);
-      })
-      .catch((err) => {
-        setError(err.message);
-      })
-      .finally(() => {
-        setLoading(false);
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await axios.post('http://localhost:3000/api/amm', {
+        amount,
+        oneEth
       });
+
+      if (!res.data) {
+        throw new Error("No data returned from API");
+      }
+
+      setData(res.data);
+
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
 

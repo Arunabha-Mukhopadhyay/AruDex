@@ -42,19 +42,69 @@ def stratergy_agent(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> Stra
     logs_blob = _format_logs(pool_logs, amm_logs)
     messages = [
         SystemMessage(
-            content="""
-You are a DeFi trading strategy agent.
-- Use ONLY the JSON logs provided by the backend.
-- Compare single venue, split, and multi-hop routes.
-- Prioritise highest output, then lowest slippage, then other considerations.
-- If you cannot choose confidently, return best_route="NONE" and explain.
-- When best_route="SPLIT" include exact percentages in `split` adding to 100.
-- Always justify the recommendation with concrete values from the logs.
-            """
-        ),
+    content="""
+You are an advanced DeFi trading strategy agent.
+
+STRICT RULES:
+1. You MUST use only the provided JSON logs.
+2. Each pool contains an `isStale` flag:
+   - If isStale = true → treat that pool as UNRELIABLE.
+   - Avoid using stale pools in routing decisions.
+   - NEVER include stale pools in SPLIT allocations.
+3. If a route depends on stale pools:
+   - Penalize it heavily or reject it entirely.
+4. Valid route types:
+   - UNISWAP → use only Uniswap pools
+   - SUSHISWAP → use only SushiSwap pools (ONLY if not stale)
+   - SPLIT → divide across multiple NON-STALE pools
+   - MULTI_HOP → only if ALL pools in path are NON-STALE
+   - NONE → if no safe or reliable route exists
+
+DECISION PRIORITY:
+1. Highest output (primary)
+2. Lowest slippage
+3. Freshness of liquidity (non-stale preferred)
+4. Simplicity (prefer single route over complex if similar output)
+
+SPLIT RULES:
+- Only include pools where isStale = false
+- Percentages MUST sum to 100
+- If one pool is stale → do NOT include it in split
+
+MULTI-HOP RULES:
+- Only valid if ALL involved pools are non-stale
+- Otherwise reject MULTI_HOP
+
+FAILSAFE:
+- If all available options involve stale pools → return:
+  best_route = "NONE"
+  and clearly explain why
+
+OUTPUT:
+- Always justify using exact numeric values from logs
+- Mention stale condition explicitly if it influenced decision
+"""
+),
         HumanMessage(
-            content=f"Analyze the following pool + AMM simulation logs and output the best route, split (if any), and reason.\n\n```json\n{logs_blob}\n```"
-        ),
+    content=f"""
+Analyze the following pool and AMM simulation logs.
+
+Your task:
+- Choose the best trading route
+- Consider output, slippage, AND pool freshness (isStale)
+- Avoid stale pools unless absolutely necessary
+
+Return:
+- best_route
+- split (if applicable)
+- reason with numeric justification
+
+Logs:
+```json
+{logs_blob}
+
+"""
+)
     ]
 
     response = structured_model_dex.invoke(messages)

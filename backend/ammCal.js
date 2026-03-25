@@ -1,21 +1,23 @@
 import { ethers } from "ethers";
 // import { poolSushiSwap, readReserves, Weth_DAI_pool, DAI_USDC_pool } from "./pool.js";
-import { uni_eth_usdc_pool, sushi_eth_usdc_pool, Weth_Dai_pool, Dai_Usdc_pool, Weth_DAI_pool } from "./pool.js";
+// import { uni_eth_usdc_pool, sushi_eth_usdc_pool, Weth_Dai_pool, Dai_Usdc_pool, Weth_DAI_pool } from "./pool.js";
+import { getAll_POOL_Logs } from './pool.js'
 
-const serializePoolLog = (label, pool) => {
-  if (!pool) {
-    return { label, error: "pool data unavailable" };
-  }
+// const serializePoolLog = (label, pool) => {
+//   if (!pool) {
+//     return { label, error: "pool data unavailable" };
+//   }
 
-  return {
-    label,
-    token0: pool.token0,
-    token1: pool.token1,
-    reserve0: pool.reserve0?.toString(),
-    reserve1: pool.reserve1?.toString(),
-    blockTimestampLast: pool.blockTimestampLast?.toString(),
-  };
-};
+//   return {
+//     label,
+//     token0: pool.token0,
+//     token1: pool.token1,
+//     reserve0: pool.reserve0?.toString(),
+//     reserve1: pool.reserve1?.toString(),
+//     blockTimestampLast: pool.blockTimestampLast?.toString(),
+//   };
+// };
+
 
 function getAmountOut(amountIn, reserveIn, reserveOut) {
   return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
@@ -25,12 +27,14 @@ function simulateSwap(amountIn, reserveIn, reserveOut) {
   return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
 }
 
+
 async function Multi_Hop(amountIn, pool1, pool2) {
   const amountOut_1 = simulateSwap(amountIn, pool1.reserve1, pool1.reserve0);
   const amountOut_2 = simulateSwap(amountOut_1, pool2.reserve0, pool2.reserve1);
   const totalOutput = amountOut_2;
   return totalOutput;
 }
+
 
 function totalOutput(amountUni, totalAmount, uniPool, sushiPool) {
   const amountSushi = totalAmount - amountUni;
@@ -39,7 +43,6 @@ function totalOutput(amountUni, totalAmount, uniPool, sushiPool) {
     uniPool.reserve1,
     uniPool.reserve0
   );
-
   const sushiOut = simulateSwap(
     amountSushi,
     sushiPool.reserve1,
@@ -51,7 +54,6 @@ function totalOutput(amountUni, totalAmount, uniPool, sushiPool) {
 
 
 function binaryBestSplit(totalAmount, uniPool, sushiPool) {
-
   let left = 0n;
   let right = totalAmount;
   const step = 10n ** 14n; // precision step
@@ -96,30 +98,74 @@ function binaryBestSplit(totalAmount, uniPool, sushiPool) {
 
 
 export const ammCalculation = async(req) => {
+  // const amount = ethers.formatEther(1)
+  // const oneEth = ethers.formatEther(20)
+
+
   const { amount, oneEth: oneEthStr } = req.body;
   const amountIn = ethers.parseEther(amount);
   const oneEth = ethers.parseEther(oneEthStr);
-  const uni = await uni_eth_usdc_pool();
-  const sushi = await sushi_eth_usdc_pool();
 
-  const dai = await Weth_DAI_pool();
-  const dai_usdc = await Dai_Usdc_pool();
+  // const uni = await uni_eth_usdc_pool();
+  // const sushi = await sushi_eth_usdc_pool();
+  // const dai = await Weth_DAI_pool();
+  // const dai_usdc = await Dai_Usdc_pool();
 
-  const amountOut_MultiHop = await Multi_Hop(oneEth, dai, dai_usdc);
+  const poolLogs = await getAll_POOL_Logs()
+
+  const uni = poolLogs.uniswapEthUsdc
+  const sushi = poolLogs.sushiswapEthUsdc
+  const dai = poolLogs.wethDai
+  const dai_usdc = poolLogs.daiUsdc
+
+  const uniReserve0 = BigInt(uni.reserve0);
+  const uniReserve1 = BigInt(uni.reserve1);
+
+  const sushiReserve0 = BigInt(sushi.reserve0);
+  const sushiReserve1 = BigInt(sushi.reserve1);
+
+  const daiReserve0 = BigInt(dai.reserve0);
+  const daiReserve1 = BigInt(dai.reserve1);
+
+  const daiUsdcReserve0 = BigInt(dai_usdc.reserve0);
+  const daiUsdcReserve1 = BigInt(dai_usdc.reserve1);
+
+  // const amountOut_MultiHop = await Multi_Hop(oneEth, dai, dai_usdc);
+  const amountOut_MultiHop = await Multi_Hop(
+    oneEth,
+    { reserve0: daiReserve0, reserve1: daiReserve1 },
+    { reserve0: daiUsdcReserve0, reserve1: daiUsdcReserve1 }
+  );
   //console.log("Multi Hop Output:", ethers.formatUnits(amountOut_MultiHop, 6));
 
 
-  const uniAmountOut = getAmountOut(amountIn, uni.reserve1, uni.reserve0);
-  const sushiAmountOut = getAmountOut(amountIn, sushi.reserve1, sushi.reserve0);
+  const uniAmountOut = getAmountOut(amountIn, uniReserve1, uniReserve0);
+  const sushiAmountOut = getAmountOut(amountIn, sushiReserve1, sushiReserve0);
 
-  const AmountOutUni = simulateSwap(oneEth, uni.reserve1, uni.reserve0);
-  const AmountOutSushi = simulateSwap(oneEth, sushi.reserve1, sushi.reserve0);
+  const AmountOutUni = simulateSwap(oneEth, uniReserve1, uniReserve0);
+  const AmountOutSushi = simulateSwap(oneEth, sushiReserve1, sushiReserve0);
 
-  const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
-  const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
-  const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
 
-  const result = binaryBestSplit(oneEth, uni, sushi);
+  const reserve0 = Number(ethers.formatUnits(uni.reserve0, 6));
+  const reserve1 = Number(ethers.formatUnits(uni.reserve1, 18));
+
+  const spotPrice_Uni = reserve0 / reserve1;
+  const executionPrice_Uni = Number(ethers.formatUnits(uniAmountOut, 6)) / Number(oneEthStr);
+  const Slippage_Uni = ((executionPrice_Uni - spotPrice_Uni) / spotPrice_Uni) * 100;  // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
+  // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
+  // const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
+
+  // const result = binaryBestSplit(oneEth, uni, sushi);
+  const result = binaryBestSplit(
+    oneEth,
+    { reserve0: uniReserve0, reserve1: uniReserve1 },
+    { reserve0: sushiReserve0, reserve1: sushiReserve1 }
+  );
+
+  //compareing output of the two paths:
+  const bestFinal = result.bestOutput > amountOut_MultiHop
+    ? result.bestOutput
+    : amountOut_MultiHop;
 
   // console.log("Uniswap USDC/WETH:", ethers.formatUnits(uniAmountOut, 6));
   // console.log("Sushiswap USDC/WETH:", ethers.formatUnits(sushiAmountOut, 6));
@@ -145,12 +191,15 @@ export const ammCalculation = async(req) => {
   //   ethers.formatUnits(result.bestOutput, 6)
   // );
 
-  const poolLogs = {
-    uniswapEthUsdc: serializePoolLog("UNISWAP_ETH_USDC", uni),
-    sushiswapEthUsdc: serializePoolLog("SUSHISWAP_ETH_USDC", sushi),
-    wethDai: serializePoolLog("UNISWAP_WETH_DAI", dai),
-    daiUsdc: serializePoolLog("UNISWAP_DAI_USDC", dai_usdc),
-  };
+  // const poolLogs = {
+  //   uniswapEthUsdc: serializePoolLog("UNISWAP_ETH_USDC", uni),
+  //   sushiswapEthUsdc: serializePoolLog("SUSHISWAP_ETH_USDC", sushi),
+  //   wethDai: serializePoolLog("UNISWAP_WETH_DAI", dai),
+  //   daiUsdc: serializePoolLog("UNISWAP_DAI_USDC", dai_usdc),
+  // };
+
+  // const poolLogs = getAll_POOL_Logs()
+  // console.log(poolLogs)
 
   const ammLogs = {
     multiHopOutput: ethers.formatUnits(amountOut_MultiHop, 6),
@@ -168,7 +217,27 @@ export const ammCalculation = async(req) => {
       inputEth: ethers.formatEther(result.sushiInput),
     },
     totalUsdcOutput: ethers.formatUnits(result.bestOutput, 6),
+    bestOverall: ethers.formatUnits(bestFinal, 6)
   };
-
   return { poolLogs, ammLogs };
 }
+
+
+const mockReq = {
+  body: {
+    amount: "1",
+    oneEth: "20"
+  }
+};
+
+ammCalculation(mockReq)
+  .then((res) => {
+    console.log(
+      JSON.stringify(res, (key, value) =>
+        typeof value === "bigint" ? value.toString() : value,
+        2)
+    );
+  })
+  .catch((err) => {
+    console.error("Error:", err);
+  });
