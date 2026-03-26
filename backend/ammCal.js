@@ -1,4 +1,6 @@
 import { ethers } from "ethers";
+import { routerAbi } from './factoryAbi.js'
+import { PROVIDER_URL } from "./config.js";
 // import { poolSushiSwap, readReserves, Weth_DAI_pool, DAI_USDC_pool } from "./pool.js";
 // import { uni_eth_usdc_pool, sushi_eth_usdc_pool, Weth_Dai_pool, Dai_Usdc_pool, Weth_DAI_pool } from "./pool.js";
 import { getAll_POOL_Logs } from './pool.js'
@@ -17,6 +19,60 @@ import { getAll_POOL_Logs } from './pool.js'
 //     blockTimestampLast: pool.blockTimestampLast?.toString(),
 //   };
 // };
+
+
+const UNISWAP_V2_ADDRESS_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
+
+const signer = new ethers.Wallet(process.env.PRIVATE_KEY,provider)
+
+
+async function estimateSwapGas(amountIn, minOut, path, wallet) {
+  const router = new ethers.Contract(
+    UNISWAP_V2_ADDRESS_ROUTER,
+    routerAbi,
+    signer
+  );
+
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 5;
+
+  const gas = await router.swapExactETHForTokens.estimateGas(
+    minOut,
+    path,
+    wallet,
+    deadline,
+    { value: amountIn }
+  );
+
+  return gas;
+}
+
+async function executeSwap(amountIn, minOut, path, wallet) {
+  const router = new ethers.Contract(
+    UNISWAP_V2_ADDRESS_ROUTER,
+    routerAbi,
+    signer
+  );
+
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 5;
+
+  const tx = await router.swapExactETHForTokens(
+    minOut,
+    path,
+    wallet,
+    deadline,
+    {
+      value: amountIn,
+      gasLimit: 300000 // safe buffer
+    }
+  );
+
+  console.log("TX SENT:", tx.hash);
+  const receipt = await tx.wait();
+  console.log("TX CONFIRMED:", receipt.transactionHash);
+
+  return receipt;
+}
 
 
 function getAmountOut(amountIn, reserveIn, reserveOut) {
@@ -151,7 +207,20 @@ export const ammCalculation = async(req) => {
 
   const spotPrice_Uni = reserve0 / reserve1;
   const executionPrice_Uni = Number(ethers.formatUnits(uniAmountOut, 6)) / Number(oneEthStr);
-  const Slippage_Uni = ((executionPrice_Uni - spotPrice_Uni) / spotPrice_Uni) * 100;  // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
+  const Slippage_Uni = ((executionPrice_Uni - spotPrice_Uni) / spotPrice_Uni) * 100;  
+
+  if (Slippage_Uni > 2) {
+    throw new Error("Slippage too high");
+  }
+
+  const path = [uni.token1, uni.token0]
+  const router = new ethers.Contract(UNISWAP_V2_ADDRESS_ROUTER,routerAbi,signer)
+  const amounts = await router.getAmountsOut(oneEth, path);
+  const expectedOut = amounts[1];
+  const minOut = expectedOut * 99n / 100n;
+
+  const gasEstimation = await estimateSwapGas(amountIn, minOut, path, signer.address);
+  // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
   // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
   // const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
 
@@ -210,6 +279,7 @@ export const ammCalculation = async(req) => {
       executionPrice: executionPrice_Uni,
       slippage: Slippage_Uni,
       inputEth: ethers.formatEther(result.uniInput),
+      gasLimit: gasEstimation.toString()
     },
     sushiswap: {
       usdcWeth: ethers.formatUnits(sushiAmountOut, 6),
