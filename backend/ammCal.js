@@ -216,8 +216,8 @@ export const ammCalculation = async(req) => {
   const path = [uni.token1, uni.token0]
   const router = new ethers.Contract(UNISWAP_V2_ADDRESS_ROUTER,routerAbi,signer)
   const amounts = await router.getAmountsOut(oneEth, path);
-  const expectedOut = amounts[1];
-  const minOut = expectedOut * 99n / 100n;
+  const expectedOut = amounts[amounts.length - 1];
+  const minOut = AmountOutUni * 99n / 100n;
 
   const gasEstimation = await estimateSwapGas(amountIn, minOut, path, signer.address);
   // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);

@@ -1,100 +1,57 @@
-# Intent-Based DEX Aggregator (Backend)
+# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
 
-This project is a prototype backend for an **intent-based DEX aggregator** that finds the best swap routes across decentralized exchanges by reading liquidity pool reserves and simulating swaps using the AMM formula.
+This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
 
-The system fetches live liquidity pool data and calculates optimal swap outputs, supporting **multi-hop routing** and **liquidity splitting**.
+To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
 
----
+## Project Overview
 
-## Features
+This example project includes:
 
-- Fetch on-chain liquidity pool reserves
-- Simulate swaps using the Uniswap V2 constant product formula
-- Multi-hop routing (WETH → DAI → USDC)
-- Liquidity splitting across DEX pools
-- Slippage estimation
-- Binary search optimization for best split
-- AMM price simulation
+- A simple Hardhat configuration file.
+- Foundry-compatible Solidity unit tests.
+- TypeScript integration tests using `mocha` and ethers.js
+- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
 
----
+## Usage
 
-## Tech Stack
+### Running Tests
 
-- Node.js
-- ethers.js
-- Ethereum JSON RPC
-- dotenv
+To run all the tests in the project, execute the following command:
 
-Protocols used:
+```shell
+npx hardhat test
+```
 
-- Uniswap V2
-- SushiSwap V2
+You can also selectively run the Solidity or `mocha` tests:
 
----
+```shell
+npx hardhat test solidity
+npx hardhat test mocha
+```
 
-## Project Structure
-backend/
-│
-├── ammCal.js # swap simulation & routing logic
-├── pool.js # reads on-chain pool reserves
-├── factoryAbi.js # Uniswap factory ABI
-├── pairAbi.js # pair contract ABI
-├── config.js # RPC configuration
-├── .env # RPC keys
-└── README.md
+### Make a deployment to Sepolia
 
+This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
 
----
+To run the deployment to a local chain:
 
-## How It Works
+```shell
+npx hardhat ignition deploy ignition/modules/Counter.ts
+```
 
-### 1. Fetch Pool Data
+To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
 
-The system reads liquidity pool data directly from Uniswap V2 factory contracts.
+You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
 
-Example pools used:
+To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
 
-WETH / DAI  
-DAI / USDC
+```shell
+npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+```
 
----
+After setting the variable, you can run the deployment with the Sepolia network:
 
-### 2. AMM Swap Formula
-
-Swaps are simulated using the **constant product formula**:
-amountOut = (reserveOut * amountIn * 997) /
-(reserveIn * 1000 + amountIn * 997)
-
-997 represents the **0.3% swap fee**.
-
-
-### 3. Multi-Hop Routing
-
-Example route:
-WETH → DAI → USDC
-
-### 4. Liquidity Splitting
-
-To minimize slippage, swaps can be split across multiple pools.
-
-The optimal split is found using **binary search optimization**.
-
-
-## Current Implementation
-
-Implemented:
-
-- Pool reserve fetching
-- AMM swap simulation
-- Slippage calculation
-- Binary search split optimization
-- Multi-hop routing
-
-
-Similar systems include:
-
-- 1inch
-- Paraswap
-- CowSwap
-
----
+```shell
+npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+```
