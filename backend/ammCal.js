@@ -20,11 +20,15 @@ import { getAll_POOL_Logs } from './pool.js'
 //   };
 // };
 
+const PRIVATE_KEY = '0x689af8efa8c651a91ad287602527f3af2fe9f6501a7ac4b061667b5a93e037fd'
 
 const UNISWAP_V2_ADDRESS_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
+const network = await provider.getNetwork();
+console.log(network.chainId);
 
-const signer = new ethers.Wallet(process.env.PRIVATE_KEY,provider)
+// const signer = new ethers.Wallet(process.env.PRIVATE_KEY,provider)
+const signer = new ethers.Wallet(PRIVATE_KEY, provider)
 
 
 async function estimateSwapGas(amountIn, minOut, path, wallet) {
@@ -206,7 +210,7 @@ export const ammCalculation = async(req) => {
   const reserve1 = Number(ethers.formatUnits(uni.reserve1, 18));
 
   const spotPrice_Uni = reserve0 / reserve1;
-  const executionPrice_Uni = Number(ethers.formatUnits(uniAmountOut, 6)) / Number(oneEthStr);
+  const executionPrice_Uni = Number(ethers.formatUnits(uniAmountOut, 6)) / Number(amount);
   const Slippage_Uni = ((executionPrice_Uni - spotPrice_Uni) / spotPrice_Uni) * 100;  
 
   if (Slippage_Uni > 2) {
@@ -219,7 +223,7 @@ export const ammCalculation = async(req) => {
   const expectedOut = amounts[amounts.length - 1];
   const minOut = AmountOutUni * 99n / 100n;
 
-  const gasEstimation = await estimateSwapGas(amountIn, minOut, path, signer.address);
+  const gasEstimation = await estimateSwapGas(oneEth, minOut, path, signer.address);
   // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
   // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
   // const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;

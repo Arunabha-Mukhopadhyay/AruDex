@@ -19,5 +19,6 @@ dotenv.config();
 //   }
 // });
 
-export const PROVIDER_URL = process.env.ALCHEMY_RPC_URL;
+//export const PROVIDER_URL = process.env.ALCHEMY_RPC_URL;
+export const PROVIDER_URL = "http://127.0.0.1:8545"
 export const STRATEGY_AGENT_URL = process.env.STRATEGY_AGENT_URL || "http://127.0.0.1:8000/api/strategy";

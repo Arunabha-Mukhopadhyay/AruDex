@@ -133,14 +133,14 @@ export async function getAll_POOL_Logs() {
     sushiDaiUsdc: await poolReserves(SushiSwap_FactoryAddress, DAI, USDC),
   };
 }
-getAll_POOL_Logs().then((data)=>{
-  console.log(
-    JSON.stringify(data, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value,
-      2
-    )
-  );
-})
+// getAll_POOL_Logs().then((data)=>{
+//   console.log(
+//     JSON.stringify(data, (key, value) =>
+//       typeof value === 'bigint' ? value.toString() : value,
+//       2
+//     )
+//   );
+// })
 
 
 
