@@ -2,17 +2,21 @@ import express from 'express'
 import cors from 'cors'
 
 import { STRATEGY_AGENT_URL } from './config.js'
-import { ammCalculation } from './ammCal.js'
+import { EXECUTION_AGENT_URL } from './config.js'
+import { ammCalculation , executeSwap, estimateSwapGas } from './ammCal.js'
 
 const app = express()
 app.use(cors());
 app.use(express.json())
+
+
 const safeJson = (obj) =>
   JSON.parse(
     JSON.stringify(obj, (_, value) =>
       typeof value === "bigint" ? value.toString() : value
     )
   );
+
 
 const requestStrategy = async (poolLogs, ammLogs) => {
 
@@ -38,6 +42,31 @@ const requestStrategy = async (poolLogs, ammLogs) => {
   return response.json();
 };
 
+
+const requestExecution = async (strategyOutput, poolLogs, ammLogs) => {
+  const safeStringify = (obj) =>
+    JSON.stringify(obj, (_, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    );
+
+  const response = await fetch(EXECUTION_AGENT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: safeStringify({
+      strategy_output: strategyOutput,
+      pool_logs: poolLogs,
+      amm_logs: ammLogs
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Execution agent responded with ${response.status}: ${errorText}`);
+  }
+
+  return response.json();
+};
+
 app.get('/', (req, res) => {
   res.send('Server is working');
 });
@@ -48,12 +77,14 @@ app.post('/api/amm', async (req, res) => {
   try {
     const { poolLogs, ammLogs } = await ammCalculation(req);
     const strategy = await requestStrategy(poolLogs, ammLogs);
+    const execution = await requestExecution(strategy, poolLogs, ammLogs); 
 
     const responsePayload = {
       ok: true,
       poolLogs,
       ammLogs,
-      strategy
+      strategy,
+      execution
     };
 
     res.send(safeJson(responsePayload));
@@ -66,6 +97,8 @@ app.post('/api/amm', async (req, res) => {
     });
   }
 });
+
+
 app.listen(3000,()=>{
   console.log(`app is running at port 3000`)
 })
