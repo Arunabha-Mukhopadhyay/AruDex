@@ -20,7 +20,7 @@ import { getAll_POOL_Logs } from './pool.js'
 //   };
 // };
 
-const PRIVATE_KEY = '0x689af8efa8c651a91ad287602527f3af2fe9f6501a7ac4b061667b5a93e037fd'
+const PRIVATE_KEY = '0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0'
 
 const UNISWAP_V2_ADDRESS_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
@@ -231,13 +231,30 @@ export const ammCalculation = async(req) => {
   // const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
 
   // const result = binaryBestSplit(oneEth, uni, sushi);
-  const result = binaryBestSplit(
-    oneEth,
-    { reserve0: uniReserve0, reserve1: uniReserve1 },
-    { reserve0: sushiReserve0, reserve1: sushiReserve1 }
-  );
 
-  //compareing output of the two paths:
+  let result;
+  if (sushi.isStale) {
+    console.log("Skipping split: Sushi pool is stale");
+
+    result = {
+      uniInput: oneEth,
+      sushiInput: 0n,
+      bestOutput: AmountOutUni
+    };
+
+  } else {
+    result = binaryBestSplit(
+      oneEth,
+      { reserve0: uniReserve0, reserve1: uniReserve1 },
+      { reserve0: sushiReserve0, reserve1: sushiReserve1 }
+    );
+  }
+  // const result = binaryBestSplit(
+  //   oneEth,
+  //   { reserve0: uniReserve0, reserve1: uniReserve1 },
+  //   { reserve0: sushiReserve0, reserve1: sushiReserve1 }
+  // );
+
   const bestFinal = result.bestOutput > amountOut_MultiHop
     ? result.bestOutput
     : amountOut_MultiHop;
@@ -279,19 +296,22 @@ export const ammCalculation = async(req) => {
   const ammLogs = {
     multiHopOutput: ethers.formatUnits(amountOut_MultiHop, 6),
     uniswap: {
+      usdcOutRaw: AmountOutUni.toString(), 
       usdcWeth: ethers.formatUnits(uniAmountOut, 6),
       usdcOut: ethers.formatUnits(AmountOutUni, 6),
       spotPrice: spotPrice_Uni,
       executionPrice: executionPrice_Uni,
       slippage: Slippage_Uni,
-      inputEth: ethers.formatEther(result.uniInput),
+      optimizedInputEth: ethers.formatEther(result.uniInput),
       gasLimit: gasEstimation.toString()
     },
     sushiswap: {
+      usdcOutRaw: AmountOutSushi.toString(),
       usdcWeth: ethers.formatUnits(sushiAmountOut, 6),
       usdcOut: ethers.formatUnits(AmountOutSushi, 6),
-      inputEth: ethers.formatEther(result.sushiInput),
+      optimizedInputEth: ethers.formatEther(result.sushiInput),
     },
+    totalUsdcOutputRaw: result.bestOutput.toString(), 
     totalUsdcOutput: ethers.formatUnits(result.bestOutput, 6),
     bestOverall: ethers.formatUnits(bestFinal, 6)
   };

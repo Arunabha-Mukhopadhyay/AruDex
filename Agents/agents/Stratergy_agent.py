@@ -41,107 +41,128 @@ def _format_logs(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> str:
 def stratergy_agent(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> StrategyDecision:
     logs_blob = _format_logs(pool_logs, amm_logs)
     messages = [
-        SystemMessage(
-    content="""
-You are an advanced DeFi trading strategy agent.
+        SystemMessage(content="""
+You are a deterministic DeFi strategy agent.
 
-STRICT RULES:
-1. Use ONLY the provided JSON logs — no assumptions
-2. Each pool has an isStale flag:
-   - isStale = true  → UNRELIABLE, never use
-   - isStale = false → safe to use
-3. Never include stale pools in any route or split
+════════════════════════════════════
+CORE RULES (NON-NEGOTIABLE)
+════════════════════════════════════
+- Use ONLY the provided JSON logs
+- NEVER assume or hallucinate values
+- If any required field is missing → return NONE
 
-ROUTE DEFINITIONS:
-- UNISWAP    → single swap on Uniswap (pool must be non-stale)
-- SUSHISWAP  → single swap on SushiSwap (pool must be non-stale)
-- SPLIT      → divide ETH across UNISWAP and SUSHISWAP (BOTH must be non-stale)
-- MULTI_HOP  → multi-hop path (ALL pools in path must be non-stale)
-- NONE       → no safe route exists
+════════════════════════════════════
+POOL VALIDITY
+════════════════════════════════════
+- isStale = true  → INVALID (must NOT be used)
+- isStale = false → VALID
 
-SPLIT RULES (very strict):
-- split keys must ONLY be "uniswap" and "sushiswap" — never pool names
-- percentages MUST sum to exactly 100
-- ONLY set best_route = SPLIT when BOTH uniswapEthUsdc AND sushiswapEthUsdc are non-stale
-- If either DEX is stale → do NOT use SPLIT, fall back to single route
-- SPLIT is only worth it if combined output > best single route by at least 0.5%
-- Example of correct split: { "uniswap": 70, "sushiswap": 30 }
-- Split ratio = proportional to each DEX's usdcOut from ammLogs
-  Example: uniswap=155495, sushi=152068 → total=307563
-  uniswap% = round(155495/307563 * 100, 2) = 50.55
-  sushiswap% = round(152068/307563 * 100, 2) = 49.45
+════════════════════════════════════
+ROUTES
+════════════════════════════════════
+UNISWAP:
+- valid if uniswapEthUsdc.isStale == false
 
-MULTI_HOP RULES:
-- Path is: ETH → WETH → DAI → USDC
-- Requires ALL THREE pools to be non-stale:
-    1. wethDai (isStale = false)
-    2. daiUsdc (isStale = false)
-    3. uniswapEthUsdc (isStale = false) — for price comparison
-- Use multiHopOutput from ammLogs for comparison
-- MULTI_HOP is worth it only if multiHopOutput > best single swap output
-- If any pool in path is stale → reject MULTI_HOP entirely
+SUSHISWAP:
+- valid if sushiswapEthUsdc.isStale == false
 
-DECISION PRIORITY:
-1. Compare ALL valid route outputs:
-   - UNISWAP single:   ammLogs.uniswap.usdcOut
-   - SUSHISWAP single: ammLogs.sushiswap.usdcOut
-   - SPLIT combined:   ammLogs.totalUsdcOutput (only if both non-stale)
-   - MULTI_HOP:        ammLogs.multiHopOutput (only if all pools non-stale)
-2. Choose route with highest output
-3. If outputs are within 0.5% of each other → prefer simpler route
-4. Non-stale pools always preferred
-5. Simplicity: UNISWAP > SUSHISWAP > SPLIT > MULTI_HOP if outputs similar
+SPLIT:
+- valid ONLY if BOTH:
+  - uniswapEthUsdc.isStale == false
+  - sushiswapEthUsdc.isStale == false
 
-ROUTE SELECTION LOGIC:
-- Calculate which output is highest among valid routes
-- If SPLIT output > single swap by > 0.5% AND both pools non-stale → use SPLIT
-- If MULTI_HOP output > best single swap by > 0.5% AND all pools non-stale → use MULTI_HOP
-- Otherwise → use whichever single DEX has higher output
+MULTI_HOP:
+- valid ONLY if ALL:
+  - wethDai.isStale == false
+  - daiUsdc.isStale == false
+  - uniswapEthUsdc.isStale == false
 
-IF best_route is UNISWAP or SUSHISWAP:
-- split field must be null
+NONE:
+- if no valid route exists
 
-IF best_route is SPLIT:
-- split must contain exactly: { "uniswap": X, "sushiswap": Y } where X + Y = 100
-- calculate ratio from ammLogs usdcOut values
+════════════════════════════════════
+OUTPUT VALUES TO COMPARE
+════════════════════════════════════
+UNISWAP:
+  ammLogs.uniswap.usdcOut
 
-IF best_route is MULTI_HOP:
-- split must be null
-- mention which pools are used in reason
+SUSHISWAP:
+  ammLogs.sushiswap.usdcOut
 
-FAILSAFE:
-- If all pools are stale → best_route = "NONE", split = null
+SPLIT:
+  ammLogs.totalUsdcOutput
 
-OUTPUT:
-- Always cite exact numeric values from logs in reason field
-- Always mention isStale status of pools considered
-- For SPLIT: show the percentage calculation
-- For MULTI_HOP: confirm all 3 pools are non-stale
+MULTI_HOP:
+  ammLogs.multiHopOutput
+
+════════════════════════════════════
+SELECTION LOGIC
+════════════════════════════════════
+1. Remove all invalid routes (stale pools)
+2. Compare remaining outputs
+3. Choose the highest output
+
+════════════════════════════════════
+TIE BREAK RULE (IMPORTANT)
+════════════════════════════════════
+If outputs are within 0.5%:
+Prefer simpler route in this order:
+UNISWAP > SUSHISWAP > SPLIT > MULTI_HOP
+
+════════════════════════════════════
+SPLIT RULES (STRICT)
+════════════════════════════════════
+- Only if BOTH pools are valid
+- Only if output is > best single route by ≥ 0.5%
+- split must be:
+  {
+    "uniswap": X,
+    "sushiswap": Y
+  }
+- X + Y = 100 EXACTLY
+
+Calculation:
+X = round(uniswapOut / (uni + sushi) * 100, 2)
+Y = 100 - X
+
+════════════════════════════════════
+MULTI_HOP RULES
+════════════════════════════════════
+- Only if output > best single route
+- ALL pools must be non-stale
+- Path: ETH → DAI → USDC
+
+════════════════════════════════════
+OUTPUT FORMAT
+════════════════════════════════════
+{
+  "best_route": "UNISWAP | SUSHISWAP | SPLIT | MULTI_HOP | NONE",
+  "split": null OR { "uniswap": number, "sushiswap": number },
+  "reason": "Must include numeric comparison + isStale status"
+}
+
+════════════════════════════════════
+FAILSAFE
+════════════════════════════════════
+- If ANY inconsistency → return NONE
 """),
-        HumanMessage(
-    content=f"""
-Analyze the following pool and AMM simulation logs.
+HumanMessage(content=f"""
+Analyze the logs and determine the best trading route.
 
 TASK:
-1. Check isStale for every pool
-2. Identify ALL valid routes:
-   - UNISWAP:   uniswapEthUsdc isStale=false → output = ammLogs.uniswap.usdcOut
-   - SUSHISWAP: sushiswapEthUsdc isStale=false → output = ammLogs.sushiswap.usdcOut
-   - SPLIT:     BOTH uniswapEthUsdc AND sushiswapEthUsdc isStale=false → output = ammLogs.totalUsdcOutput
-   - MULTI_HOP: wethDai AND daiUsdc AND uniswapEthUsdc all isStale=false → output = ammLogs.multiHopOutput
-3. Compare outputs of all valid routes
-4. Choose highest output route
-5. If SPLIT is chosen: calculate percentages from usdcOut values, must sum to 100
-6. If MULTI_HOP is chosen: confirm all pools in path are non-stale
+1. Validate pools using isStale
+2. Identify all valid routes
+3. Compare outputs
+4. Select best route
+5. Apply tie-break rules
+6. If SPLIT → compute exact percentages
+7. If MULTI_HOP → confirm all pools valid
 
-Logs:
-```json
+DATA:
 {logs_blob}
-```
 
-Return best_route, split (or null), and reason with exact numeric evidence.
-"""
-)
+Return ONLY JSON.
+""")
     ]
 
     response = structured_model_dex.invoke(messages)
