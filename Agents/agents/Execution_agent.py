@@ -137,12 +137,42 @@ MULTI_HOP:
 ════════════════════════════════════
 CALCULATIONS (EXACT)
 ════════════════════════════════════
+CRITICAL NUMERIC RULES:
 
 amount_in_wei:
-= int(float(input_eth) * 1e18)
+- MUST be computed as:
+  int(float(input_eth) * 1000000000000000000)
+- Example:
+  40.0 → 40000000000000000000
+- If value is smaller than 1e18 → YOU ARE WRONG
 
 min_out:
-= int(int(usdcOutRaw) * 0.99)
+- MUST be:
+  int(usdcOutRaw * 0.99)
+- NEVER equal to usdcOutRaw
+
+PATH:
+- MUST be FULL TOKEN ADDRESSES
+- NEVER use "WETH", "USDC", symbols
+-here are the token addresses:
+    WETH: 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    USDC:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
+    DAI:0x6B175474E89094C44Da98b954EedeAC495271d0F
+- For multi-hop, MUST include DAI address in middle
+- NEVER use incorrect path
+              
+
+swap_exact_eth_for_tokens args:
+- MUST be EXACTLY:
+  ["DEX", amount_in_wei, min_out, [path]]
+- NEVER object
+- NEVER key-value pairs
+
+max_slippage:
+- MUST be abs(slippage from ammLogs)
+- NEVER use 2
+
+
 
 max_slippage:
 = abs(slippage)
@@ -207,6 +237,43 @@ If ANY rule violated → return:
   "max_slippage": 0,
   "reason": "Explain failure"
 }
+              
+here is an example of a valid response:
+suppose amount is 10 eth and oneETH is 40 then:
+{
+  "action": "SINGLE_SWAP",
+  "dex": "UNISWAP",
+  "steps": [
+    {
+      "function": "estimate_gas",
+      "args": [{
+        "dex": "UNISWAP",
+        "amount_in": 40000000000000000000,
+        "min_out": 102880068014,
+        "path": [
+          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        ]
+      }]
+    },
+    {
+      "function": "swap_exact_eth_for_tokens",
+      "args": [
+        "UNISWAP",
+        40000000000000000000,
+        102880068014,
+        [
+          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        ]
+      ]
+    }
+  ],
+  "input_eth": "40.0",
+  "expected_output": "103919.260621",
+  "max_slippage": 0.4232456157403351,
+  "reason": "Uniswap selected: isStale=false, output 103919.260621 > Sushi 102389.625717"
+}
 """),
 HumanMessage(content=f"""
 DATA:
@@ -215,6 +282,16 @@ DATA:
 TASK:
 
 1. Read strategy.best_route
+
+Compute STRICTLY:
+
+amount_in_wei = int(float(input_eth) * 1e18)
+
+min_out = int(int(usdcOutRaw) * 0.99)
+
+max_slippage = abs(slippage)
+
+IF any mismatch → ABORT
 
 2. Select source:
 - UNISWAP → ammLogs.uniswap
