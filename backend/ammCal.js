@@ -259,6 +259,7 @@ export const ammCalculation = async(req) => {
 
 
   // const path = [uni.token1, uni.token0]
+  const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
   const isWethToken0 = uni.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
 
   const path = isWethToken0
