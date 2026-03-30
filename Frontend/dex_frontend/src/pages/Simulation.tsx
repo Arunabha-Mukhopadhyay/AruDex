@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 
 function Simulation() {
-  const [amount, setAmount] = useState<string>('');
+  //const [amount, setAmount] = useState<string>('');
   const [oneEth, setOneEth] = useState<string>('');
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +14,7 @@ function Simulation() {
       setError(null);
 
       const res = await axios.post('http://localhost:3000/api/amm', {
-        amount,
+        //amount,
         oneEth
       });
 
@@ -36,13 +36,6 @@ function Simulation() {
 
   return (
     <div>
-      <input
-        type="text"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        placeholder="Enther the amount"
-        required
-      />
       <input 
         type="text"
         value={oneEth}

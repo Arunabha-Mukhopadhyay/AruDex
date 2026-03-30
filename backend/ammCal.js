@@ -108,7 +108,6 @@ function totalOutput(amountUni, totalAmount, uniPool, sushiPool) {
     sushiPool.reserve1,
     sushiPool.reserve0
   );
-
   return uniOut + sushiOut;
 }
 
@@ -138,7 +137,6 @@ function binaryBestSplit(totalAmount, uniPool, sushiPool) {
       bestAmount = mid;
     }
   }
-
   return {
     uniInput: bestAmount,
     sushiInput: totalAmount - bestAmount,
@@ -163,11 +161,15 @@ export const ammCalculation = async(req) => {
   // const amount = ethers.formatEther(1)
   // const oneEth = ethers.formatEther(20)
 
+  // const { amount, oneEth: oneEthStr } = req.body;
+  // const amountIn = ethers.parseEther(amount);
 
-  const { amount, oneEth: oneEthStr } = req.body;
-  const amountIn = ethers.parseEther(amount);
+  if (!req?.body?.oneEth) {
+    throw new Error("oneEth is required");
+  }
+
+  const oneEthStr = req.body.oneEth;
   const oneEth = ethers.parseEther(oneEthStr);
-
   // const uni = await uni_eth_usdc_pool();
   // const sushi = await sushi_eth_usdc_pool();
   // const dai = await Weth_DAI_pool();
@@ -192,56 +194,43 @@ export const ammCalculation = async(req) => {
   const daiUsdcReserve0 = BigInt(dai_usdc.reserve0);
   const daiUsdcReserve1 = BigInt(dai_usdc.reserve1);
 
+
   // const amountOut_MultiHop = await Multi_Hop(oneEth, dai, dai_usdc);
-  const amountOut_MultiHop = await Multi_Hop(
-    oneEth,
-    { reserve0: daiReserve0, reserve1: daiReserve1 },
-    { reserve0: daiUsdcReserve0, reserve1: daiUsdcReserve1 }
-  );
+  let amountOut_MultiHop = 0n;
+
+  if (!dai.isStale && !dai_usdc.isStale) {
+    amountOut_MultiHop = await Multi_Hop(
+      oneEth,
+      { reserve0: daiReserve0, reserve1: daiReserve1 },
+      { reserve0: daiUsdcReserve0, reserve1: daiUsdcReserve1 }
+    );
+  } else {
+    console.log("Skipping multi-hop: stale pool detected");
+  }
+  // const amountOut_MultiHop = await Multi_Hop(
+  //   oneEth,
+  //   { reserve0: daiReserve0, reserve1: daiReserve1 },
+  //   { reserve0: daiUsdcReserve0, reserve1: daiUsdcReserve1 }
+  // );
   //console.log("Multi Hop Output:", ethers.formatUnits(amountOut_MultiHop, 6));
 
 
-  const uniAmountOut = getAmountOut(amountIn, uniReserve1, uniReserve0);
-  const sushiAmountOut = getAmountOut(amountIn, sushiReserve1, sushiReserve0);
+
+  // const uniAmountOut = getAmountOut(amountIn, uniReserve1, uniReserve0);
+  // const sushiAmountOut = getAmountOut(amountIn, sushiReserve1, sushiReserve0);
 
   const AmountOutUni = simulateSwap(oneEth, uniReserve1, uniReserve0);
   const AmountOutSushi = simulateSwap(oneEth, sushiReserve1, sushiReserve0);
 
 
-  const reserve0 = Number(ethers.formatUnits(uni.reserve0, 6));
-  const reserve1 = Number(ethers.formatUnits(uni.reserve1, 18));
-
-  const spotPrice_Uni = reserve0 / reserve1;
-  const executionPrice_Uni = Number(ethers.formatUnits(uniAmountOut, 6)) / Number(amount);
-  const Slippage_Uni = ((executionPrice_Uni - spotPrice_Uni) / spotPrice_Uni) * 100;  
-
-  if (Slippage_Uni > 2) {
-    throw new Error("Slippage too high");
-  }
-
-  const path = [uni.token1, uni.token0]
-  const router = new ethers.Contract(UNISWAP_V2_ADDRESS_ROUTER,routerAbi,signer)
-  const amounts = await router.getAmountsOut(oneEth, path);
-  const expectedOut = amounts[amounts.length - 1];
-  const minOut = AmountOutUni * 99n / 100n;
-
-  const gasEstimation = await estimateSwapGas(oneEth, minOut, path, signer.address);
-  // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
-  // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
-  // const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
-
-  // const result = binaryBestSplit(oneEth, uni, sushi);
-
   let result;
   if (sushi.isStale) {
     console.log("Skipping split: Sushi pool is stale");
-
     result = {
       uniInput: oneEth,
       sushiInput: 0n,
       bestOutput: AmountOutUni
     };
-
   } else {
     result = binaryBestSplit(
       oneEth,
@@ -249,15 +238,67 @@ export const ammCalculation = async(req) => {
       { reserve0: sushiReserve0, reserve1: sushiReserve1 }
     );
   }
+
+  let bestFinal = result.bestOutput;
+  if (amountOut_MultiHop > 0n && amountOut_MultiHop > result.bestOutput) {
+    bestFinal = amountOut_MultiHop;
+  }
+
+  const optimizedInputEth = sushi.isStale ? oneEth : result.uniInput;
+
+  const reserve0 = Number(ethers.formatUnits(uni.reserve0, 6));
+  const reserve1 = Number(ethers.formatUnits(uni.reserve1, 18));
+
+  const spotPrice_Uni = reserve0 / reserve1;
+  const executionPrice_Uni = Number(ethers.formatUnits(simulateSwap(optimizedInputEth, uniReserve1, uniReserve0), 6)) / Number(ethers.formatEther(optimizedInputEth));
+  const Slippage_Uni = ((executionPrice_Uni - spotPrice_Uni) / spotPrice_Uni) * 100; 
+
+  if (Math.abs(Slippage_Uni) > 2) {
+    throw new Error("Slippage too high");
+  }
+
+
+  // const path = [uni.token1, uni.token0]
+  const isWethToken0 = uni.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
+
+  const path = isWethToken0
+    ? [uni.token0, uni.token1]
+    : [uni.token1, uni.token0];
+  const router = new ethers.Contract(UNISWAP_V2_ADDRESS_ROUTER,routerAbi,signer)
+  const amounts = await router.getAmountsOut(optimizedInputEth, path);
+  //const expectedOutOptimized = simulateSwap(optimizedInputEth,uniReserve1,uniReserve0);
+  const expectedOut = amounts[amounts.length - 1];
+  const minOut = expectedOut * 99n / 100n;
+  // const minOut = AmountOutUni * 99n / 100n;
+
+
+  
+  //const gasEstimation = await estimateSwapGas(oneEth, minOut, path, signer.address);
+  const gasEstimation = await estimateSwapGas(
+    optimizedInputEth,
+    minOut,
+    path,
+    signer.address
+  );
+  
+  // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
+  // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
+  // const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
+
+
+  // const result = binaryBestSplit(oneEth, uni, sushi);
+
   // const result = binaryBestSplit(
   //   oneEth,
   //   { reserve0: uniReserve0, reserve1: uniReserve1 },
   //   { reserve0: sushiReserve0, reserve1: sushiReserve1 }
   // );
 
-  const bestFinal = result.bestOutput > amountOut_MultiHop
-    ? result.bestOutput
-    : amountOut_MultiHop;
+  // const bestFinal = result.bestOutput > amountOut_MultiHop
+  //   ? result.bestOutput
+  //   : amountOut_MultiHop;
+
+
 
   // console.log("Uniswap USDC/WETH:", ethers.formatUnits(uniAmountOut, 6));
   // console.log("Sushiswap USDC/WETH:", ethers.formatUnits(sushiAmountOut, 6));
@@ -297,17 +338,17 @@ export const ammCalculation = async(req) => {
     multiHopOutput: ethers.formatUnits(amountOut_MultiHop, 6),
     uniswap: {
       usdcOutRaw: AmountOutUni.toString(), 
-      usdcWeth: ethers.formatUnits(uniAmountOut, 6),
+      //usdcWeth: ethers.formatUnits(uniAmountOut, 6),
       usdcOut: ethers.formatUnits(AmountOutUni, 6),
       spotPrice: spotPrice_Uni,
       executionPrice: executionPrice_Uni,
       slippage: Slippage_Uni,
-      optimizedInputEth: ethers.formatEther(result.uniInput),
+      optimizedInputEth: ethers.formatEther(optimizedInputEth),
       gasLimit: gasEstimation.toString()
     },
     sushiswap: {
       usdcOutRaw: AmountOutSushi.toString(),
-      usdcWeth: ethers.formatUnits(sushiAmountOut, 6),
+      //usdcWeth: ethers.formatUnits(sushiAmountOut, 6),
       usdcOut: ethers.formatUnits(AmountOutSushi, 6),
       optimizedInputEth: ethers.formatEther(result.sushiInput),
     },
@@ -321,7 +362,6 @@ export const ammCalculation = async(req) => {
 
 const mockReq = {
   body: {
-    amount: "1",
     oneEth: "20"
   }
 };
