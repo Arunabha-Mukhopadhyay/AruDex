@@ -11,3 +11,4 @@ uvicorn
 langchain-ollama
 langgraph
 python-dotenv
+langchain-groq

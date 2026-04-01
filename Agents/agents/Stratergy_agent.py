@@ -1,16 +1,20 @@
 import json
 from typing import Any, Dict, Optional
 
-from langchain_ollama import ChatOllama
+# from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
+import os
+
 load_dotenv()
 
-model = ChatOllama(
-    model="mistral:latest",
-    temperature=0.2
+model = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.2,
+    api_key=os.getenv("GROQ_API_KEY")
 )
 
 

@@ -1,23 +1,22 @@
-from langchain_ollama import ChatOllama
+# from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from typing import Any, Dict, Literal, List
 import json
+import os
 
 from tools.swap_tool import swap_exact_eth_for_tokens
 from tools.Approve_tool import approve_token, estimate_gas
 
 load_dotenv()
 
-model = ChatOllama(
-    model="mistral:latest",
-    temperature=0.2
+model = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.2,
+    api_key=os.getenv("GROQ_API_KEY")
 )
-
-# =========================
-# SCHEMA
-# =========================
 
 class ExecutionStep(BaseModel):
     function: str
@@ -34,9 +33,6 @@ class ExecutionPlan(BaseModel):
     reason: str
 
 
-# =========================
-# TOOL BINDING
-# =========================
 
 model_with_tools = model.bind_tools([
     swap_exact_eth_for_tokens,
@@ -47,10 +43,6 @@ model_with_tools = model.bind_tools([
 structured_output = model_with_tools.with_structured_output(ExecutionPlan)
 
 
-# =========================
-# FORMATTER
-# =========================
-
 def _format_execution_input(strategy, pool_logs, amm_logs):
     return json.dumps({
         "strategy": strategy,
@@ -58,10 +50,6 @@ def _format_execution_input(strategy, pool_logs, amm_logs):
         "amm_logs": amm_logs
     }, indent=2, default=str)
 
-
-# =========================
-# MAIN AGENT
-# =========================
 
 def Execution_agent(strategy_output: Dict[str, Any],
                    pool_logs: Dict[str, Any],
@@ -71,9 +59,6 @@ def Execution_agent(strategy_output: Dict[str, Any],
 
     messages = [
 
-# =========================
-# SYSTEM MESSAGE (FIXED)
-# =========================
 
 SystemMessage(content="""
 You are a deterministic DeFi execution agent.
@@ -200,7 +185,7 @@ args = [
   [path]
 ]
 
-🚨 NEVER:
+NEVER:
 - wrap swap args in dict
 - use named params
 - change order
