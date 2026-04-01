@@ -34,6 +34,9 @@ class StrategyDecision(BaseModel):
 structured_model_dex = model.with_structured_output(StrategyDecision)
 
 
+# later on we can have the Stratergy Agent also determine if an arbitrage opportunity exists and then execute on it, but for now we will just focus on the Stratergy Agent which determines the best route for a given swap based on the logs from the pool and amm
+
+
 def _format_logs(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> str:
     payload = {
         "pool_logs": pool_logs,
