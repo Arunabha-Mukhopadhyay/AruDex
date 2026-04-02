@@ -281,6 +281,15 @@ export const ammCalculation = async(req) => {
     path,
     signer.address
   );
+
+
+  const feeData = await provider.getFeeData();
+  const gasPrice = feeData.gasPrice;
+  const estimatedGasCost = gasEstimation * gasPrice;
+  const gasCostEth = ethers.formatEther(estimatedGasCost);
+  const gas_cost_usdc = Number(gasCostEth) * executionPrice_Uni;
+  const effectiveOutput = Number(ethers.formatUnits(AmountOutUni, 6)) - gas_cost_usdc;
+
   
   // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
   // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
@@ -345,7 +354,9 @@ export const ammCalculation = async(req) => {
       executionPrice: executionPrice_Uni,
       slippage: Slippage_Uni,
       optimizedInputEth: ethers.formatEther(optimizedInputEth),
-      gasLimit: gasEstimation.toString()
+      gasLimit: gasEstimation.toString(),
+      gas_cost_usdc: gas_cost_usdc.toFixed(6),
+      effectiveOutput: effectiveOutput.toFixed(6)
     },
     sushiswap: {
       usdcOutRaw: AmountOutSushi.toString(),
@@ -355,7 +366,8 @@ export const ammCalculation = async(req) => {
     },
     totalUsdcOutputRaw: result.bestOutput.toString(), 
     totalUsdcOutput: ethers.formatUnits(result.bestOutput, 6),
-    bestOverall: ethers.formatUnits(bestFinal, 6)
+    totalEffectiveOutput: effectiveOutput.toFixed(6),
+    bestOverall: effectiveOutput.toFixed(6)
   };
   return { poolLogs, ammLogs };
 }

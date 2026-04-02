@@ -52,12 +52,7 @@ def _format_logs(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any], arb_result
 
 # later on we can have the Stratergy Agent also determine if an arbitrage opportunity exists and then execute on it, but for now we will just focus on the Stratergy Agent which determines the best route for a given swap based on the logs from the pool and amm
 
-def arbitrage_calculation(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> str:
-    """
-    This is a basic arbitrage strategy which can be used for most types of connectors DEX or AMM.
-    For a given order amount, the strategy checks both sides of the trade (market_1 and market_2) for arb opportunity.
-    If presents, the strategy submits taker orders to both market.
-    """
+def arbitrage_calculation(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> Dict[str, Any]:
     try:
         uni = pool_logs.get("uniswapEthUsdc")
         sushi = pool_logs.get("sushiswapEthUsdc")
@@ -68,42 +63,40 @@ def arbitrage_calculation(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -
         if uni.get("isStale") or sushi.get("isStale"):
             return {"arb": False, "reason": "One or more pools are stale"}
 
-        uni_r0 = float(uni["reserve0"])   # USDC
-        uni_r1 = float(uni["reserve1"])   # WETH
+        # Outputs from AMM logs
+        uni_out = float(amm_logs["uniswap"]["usdcOut"])
+        sushi_out = float(amm_logs["sushiswap"]["usdcOut"])
 
-        sushi_r0 = float(sushi["reserve0"])
-        sushi_r1 = float(sushi["reserve1"])
+        # ✅ Use REAL gas cost (already computed in backend)
+        gas_cost_usdc = float(amm_logs["uniswap"]["gas_cost_usdc"])
 
-        price_uni = uni_r0 / uni_r1
-        price_sushi = sushi_r0 / sushi_r1
-
-        gas_limit = float(amm_logs["uniswap"]["gasLimit"])
-        GAS_PRICE = 20 * 1e-9   
-        ETH_PRICE = price_uni   
-
-        gas_limit = float(amm_logs["uniswap"]["gasLimit"])
-        GAS_PRICE = 20 * 1e-9   
-        ETH_PRICE = price_uni   
-
-        gas_cost_eth = gas_limit * GAS_PRICE
-        gas_cost_usdc = gas_cost_eth * ETH_PRICE
-
-        profit_sushi_to_uni = uni_out - sushi_out - gas_cost_usdc
+        # Arbitrage profits
         profit_uni_to_sushi = sushi_out - uni_out - gas_cost_usdc
-        THRESHOLD_USDC = 5  
+        profit_sushi_to_uni = uni_out - sushi_out - gas_cost_usdc
+
+        THRESHOLD_USDC = 5  # avoid noise
 
         if profit_uni_to_sushi > THRESHOLD_USDC:
             return {
                 "arb": True,
                 "direction": "UNI_TO_SUSHI",
-                "profit_usdc": profit_uni_to_sushi,
-                "gas_cost_usdc": gas_cost_usdc,
-                "reason": f"Profitable after gas. Net={profit_uni_to_sushi:.2f} USDC"
+                "profit_usdc": round(profit_uni_to_sushi, 6),
+                "gas_cost_usdc": round(gas_cost_usdc, 6),
+                "reason": f"UNI→SUSHI profitable: net {profit_uni_to_sushi:.2f} USDC after gas {gas_cost_usdc:.2f}"
+            }
+
+        if profit_sushi_to_uni > THRESHOLD_USDC:
+            return {
+                "arb": True,
+                "direction": "SUSHI_TO_UNI",
+                "profit_usdc": round(profit_sushi_to_uni, 6),
+                "gas_cost_usdc": round(gas_cost_usdc, 6),
+                "reason": f"SUSHI→UNI profitable: net {profit_sushi_to_uni:.2f} USDC after gas {gas_cost_usdc:.2f}"
             }
 
         return {
             "arb": False,
-            "reason": f"No profitable arbitrage after gas. Best={max(profit_sushi_to_uni, profit_uni_to_sushi):.2f} USDC"
+            "reason": f"No arbitrage after gas. Best profit={max(profit_uni_to_sushi, profit_sushi_to_uni):.2f} USDC"
         }
 
     except Exception as e:
@@ -195,10 +188,10 @@ MULTI_HOP:
 OUTPUT METRICS
 ════════════════════════════════════
 UNISWAP:
-  ammLogs.uniswap.usdcOut
+  ammLogs.uniswap.totalEffectiveOutput
 
 SUSHISWAP:
-  ammLogs.sushiswap.usdcOut
+  ammLogs.sushiswap.totalEffectiveOutput
 
 SPLIT:
   ammLogs.totalUsdcOutput
