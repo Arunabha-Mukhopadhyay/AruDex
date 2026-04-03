@@ -1,19 +1,17 @@
 import json
 from typing import Any, Dict, Optional
 
-# from langchain_ollama import ChatOllama
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
-
 import os
 
 load_dotenv()
 
 model = ChatGroq(
     model="llama-3.3-70b-versatile",
-    temperature=0.2,
+    temperature=0.1,
     api_key=os.getenv("GROQ_API_KEY")
 )
 
@@ -24,24 +22,16 @@ class StrategyDecision(BaseModel):
     )
     split: Optional[Dict[str, float]] = Field(
         default=None,
-        description="Percentage split per venue when best_route is SPLIT."
+        description="Percentage split when SPLIT is chosen"
     )
-    reason: str = Field(
-        description="Concise explanation that cites the numeric evidence from the logs."
-    )
-
-    arb_details: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Present only if ARBITRAGE is selected"
-    )
+    reason: str
+    arb_details: Optional[Dict[str, Any]] = None
 
 
 structured_model_dex = model.with_structured_output(StrategyDecision)
 
 
-
-
-def _format_logs(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any], arb_result) -> str:
+def _format_logs(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any], arb_result: Dict[str, Any]) -> str:
     payload = {
         "pool_logs": pool_logs,
         "amm_logs": amm_logs,
@@ -50,7 +40,6 @@ def _format_logs(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any], arb_result
     return json.dumps(payload, indent=2, default=str)
 
 
-# later on we can have the Stratergy Agent also determine if an arbitrage opportunity exists and then execute on it, but for now we will just focus on the Stratergy Agent which determines the best route for a given swap based on the logs from the pool and amm
 
 def arbitrage_calculation(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> Dict[str, Any]:
     try:
@@ -61,82 +50,73 @@ def arbitrage_calculation(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -
             return {"arb": False, "reason": "Missing pool data"}
 
         if uni.get("isStale") or sushi.get("isStale"):
-            return {"arb": False, "reason": "One or more pools are stale"}
+            return {"arb": False, "reason": "Stale pool detected"}
 
-        # Outputs from AMM logs
-        uni_out = float(amm_logs["uniswap"]["usdcOut"])
-        sushi_out = float(amm_logs["sushiswap"]["usdcOut"])
+        if "arb" not in amm_logs:
+            return {"arb": False, "reason": "No arb logs"}
 
-        # ✅ Use REAL gas cost (already computed in backend)
-        gas_cost_usdc = float(amm_logs["uniswap"]["gas_cost_usdc"])
+        arb_logs = amm_logs["arb"]
 
-        # Arbitrage profits
-        profit_uni_to_sushi = sushi_out - uni_out - gas_cost_usdc
-        profit_sushi_to_uni = uni_out - sushi_out - gas_cost_usdc
+        uni_to_sushi = arb_logs.get("uni_to_sushi")
+        sushi_to_uni = arb_logs.get("sushi_to_uni")
 
-        THRESHOLD_USDC = 5  # avoid noise
+        if not uni_to_sushi or not sushi_to_uni:
+            return {"arb": False, "reason": "Incomplete arb logs"}
 
-        if profit_uni_to_sushi > THRESHOLD_USDC:
+        profit_uts = float(uni_to_sushi["netProfit"])
+        profit_stu = float(sushi_to_uni["netProfit"])
+
+        THRESHOLD = 5  # avoid noise
+
+        if profit_uts > THRESHOLD:
             return {
                 "arb": True,
                 "direction": "UNI_TO_SUSHI",
-                "profit_usdc": round(profit_uni_to_sushi, 6),
-                "gas_cost_usdc": round(gas_cost_usdc, 6),
-                "reason": f"UNI→SUSHI profitable: net {profit_uni_to_sushi:.2f} USDC after gas {gas_cost_usdc:.2f}"
+                "profit_usdc": profit_uts,
+                "reason": f"UNI→SUSHI net profit {profit_uts:.2f} USDC"
             }
 
-        if profit_sushi_to_uni > THRESHOLD_USDC:
+        if profit_stu > THRESHOLD:
             return {
                 "arb": True,
                 "direction": "SUSHI_TO_UNI",
-                "profit_usdc": round(profit_sushi_to_uni, 6),
-                "gas_cost_usdc": round(gas_cost_usdc, 6),
-                "reason": f"SUSHI→UNI profitable: net {profit_sushi_to_uni:.2f} USDC after gas {gas_cost_usdc:.2f}"
+                "profit_usdc": profit_stu,
+                "reason": f"SUSHI→UNI net profit {profit_stu:.2f} USDC"
             }
 
         return {
             "arb": False,
-            "reason": f"No arbitrage after gas. Best profit={max(profit_uni_to_sushi, profit_sushi_to_uni):.2f} USDC"
+            "reason": f"No profitable arbitrage. Max profit={max(profit_uts, profit_stu):.2f}"
         }
 
     except Exception as e:
         return {
             "arb": False,
-            "reason": f"Error in arbitrage calculation: {str(e)}"
+            "reason": f"Arb calc error: {str(e)}"
         }
 
 
 
-def stratergy_agent(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> StrategyDecision:
+def strategy_agent(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> StrategyDecision:
+
     arb_result = arbitrage_calculation(pool_logs, amm_logs)
-
-    # if arb_result.get("arb"):
-    #   return {
-    #     "best_route": "ARBITRAGE",
-    #     "split": None,
-    #     "reason": arb_result["reason"],
-    #     "arb_details": arb_result
-    # }
-
-    logs_blob = _format_logs(pool_logs, amm_logs,arb_result)
+    logs_blob = _format_logs(pool_logs, amm_logs, arb_result)
 
     messages = [
+
         SystemMessage(content="""
-You are a deterministic DeFi strategy agent.
+You are an advanced deterministic DeFi routing engine.
+
+Your job is to select the SINGLE best execution strategy using ONLY the provided logs.
 
 ════════════════════════════════════
-CORE RULES (NON-NEGOTIABLE)
+STRICT RULES
 ════════════════════════════════════
-- Use ONLY the provided JSON logs
-- NEVER assume values
-- NEVER hallucinate
-- If data is inconsistent → return NONE
-
-════════════════════════════════════
-POOL VALIDITY
-════════════════════════════════════
-- isStale = true → INVALID
-- isStale = false → VALID
+- DO NOT hallucinate
+- DO NOT assume missing values
+- DO NOT recompute AMM math
+- ONLY use numbers from JSON
+- If inconsistency → return NONE
 
 ════════════════════════════════════
 AVAILABLE ROUTES
@@ -147,90 +127,74 @@ SPLIT
 MULTI_HOP
 ARBITRAGE
 NONE
-════════════════════════════════════
-ARBITRAGE (HIGHEST PRIORITY)
-════════════════════════════════════
-- Use arb_result from input
 
-- If arb_result.arb == true:
-  → ALWAYS select "ARBITRAGE"
-  → Ignore ALL other routes
-  → arb_details MUST be copied EXACTLY from arb_result
-  → DO NOT modify keys or values
-  → DO NOT summarize
-  → DO NOT recompute
-  → reason MUST include:
-   - exact profit_usdc value
-   - exact gas_cost_usdc value
-   - direction (UNI_TO_SUSHI or SUSHI_TO_UNI)
-→ If missing → INVALID → return NONE
-
-- If arb_result.arb == false:
-  → ARBITRAGE must NOT be selected
-- If arb_result fields are missing or inconsistent → return NONE
-                      
 ════════════════════════════════════
-ROUTE VALIDITY
+POOL VALIDITY
+════════════════════════════════════
+A pool is VALID if:
+- isStale == false
+
+INVALID if:
+- isStale == true
+
+════════════════════════════════════
+METRICS (FROM BACKEND)
 ════════════════════════════════════
 UNISWAP:
-  uniswapEthUsdc.isStale == false
+- amm_logs.uniswap.effectiveOutput
 
 SUSHISWAP:
-  sushiswapEthUsdc.isStale == false
+- amm_logs.sushiswap.effectiveOutput
 
 SPLIT:
-  BOTH pools must be valid
+- amm_logs.totalUsdcOutput
 
 MULTI_HOP:
-  wethDai, daiUsdc, uniswapEthUsdc must be valid
+- amm_logs.multiHopOutput
+
+ARBITRAGE:
+- USE arb_result ONLY
+- DO NOT recompute
 
 ════════════════════════════════════
-OUTPUT METRICS
+ARBITRAGE PRIORITY (HIGHEST)
 ════════════════════════════════════
-UNISWAP:
-  ammLogs.uniswap.totalEffectiveOutput
+IF arb_result.arb == true:
+→ ALWAYS select ARBITRAGE
+→ IGNORE everything else
+→ arb_details MUST equal arb_result EXACTLY
 
-SUSHISWAP:
-  ammLogs.sushiswap.totalEffectiveOutput
-
-SPLIT:
-  ammLogs.totalUsdcOutput
-
-MULTI_HOP:
-  ammLogs.multiHopOutput
+════════════════════════════════════
+ROUTE VALIDATION
+════════════════════════════════════
+UNISWAP → uniswapEthUsdc valid
+SUSHISWAP → sushiswapEthUsdc valid
+SPLIT → BOTH valid
+MULTI_HOP → wethDai + daiUsdc valid
 
 ════════════════════════════════════
 SELECTION LOGIC
 ════════════════════════════════════
-1. Check ARBITRAGE first
-2. If no arbitrage:
-   - Remove invalid routes
-   - Compare outputs
-   - Choose highest
+1. Check ARBITRAGE
+2. Remove invalid routes
+3. Compare outputs
+4. Choose highest
 
 ════════════════════════════════════
-TIE BREAK RULE
+TIE BREAK (≤0.5%)
 ════════════════════════════════════
-If outputs within 0.5%:
 UNISWAP > SUSHISWAP > SPLIT > MULTI_HOP
 
 ════════════════════════════════════
-SPLIT RULES
+SPLIT RULE
 ════════════════════════════════════
-- Only if both pools valid
+- Only if BOTH pools valid
 - Only if improvement ≥ 0.5%
-- split must sum EXACTLY 100
+- split must sum to EXACTLY 100
 
 ════════════════════════════════════
-OUTPUT FORMAT (STRICT)
+OUTPUT FORMAT (STRICT JSON)
 ════════════════════════════════════
-- If best_route == "ARBITRAGE":
-  - arb_details MUST be present
-  - arb_details MUST equal arb_result exactly
-
-- If best_route != "ARBITRAGE":
-  - arb_details MUST be null
-
 {
   "best_route": "...",
   "split": null OR {...},
@@ -241,20 +205,34 @@ OUTPUT FORMAT (STRICT)
 ════════════════════════════════════
 FAILSAFE
 ════════════════════════════════════
-If ANY inconsistency → return NONE
+If ANY inconsistency → return:
+{
+  "best_route": "NONE",
+  "split": null,
+  "reason": "Inconsistent or insufficient data",
+  "arb_details": null
+}
 """),
-HumanMessage(content=f"""
-Analyze the logs and determine the optimal trading strategy.
+        HumanMessage(content=f"""
+Analyze the following DeFi execution logs and determine the optimal strategy.
 
 STEPS:
-1. Check arbitrage opportunity using arb_result
-2. If arbitrage exists → select ARBITRAGE
+1. Evaluate arbitrage using arb_result
+2. If arbitrage exists → SELECT ARBITRAGE
 3. Otherwise:
    - Validate pools
-   - Identify valid routes
-   - Compare outputs
-   - Apply tie-break rules
-4. If SPLIT → compute exact percentages
+   - Compare outputs:
+     • Uniswap → effectiveOutput
+     • Sushi → effectiveOutput
+     • Split → totalUsdcOutput
+     • Multi-hop → multiHopOutput
+4. Apply tie-break rules if needed
+5. If SPLIT → compute exact % allocation
+
+IMPORTANT:
+- Use ONLY provided numbers
+- DO NOT recompute anything
+- Be deterministic
 
 DATA:
 {logs_blob}
@@ -264,12 +242,13 @@ Return ONLY JSON.
     ]
 
     response = structured_model_dex.invoke(messages)
+
     if arb_result.get("arb") and response.best_route != "ARBITRAGE":
-      return StrategyDecision(
-        best_route="ARBITRAGE",
-        split=None,
-        reason=arb_result["reason"],
-        arb_details=arb_result
-      )
+        return StrategyDecision(
+            best_route="ARBITRAGE",
+            split=None,
+            reason=arb_result["reason"],
+            arb_details=arb_result
+        )
 
     return response

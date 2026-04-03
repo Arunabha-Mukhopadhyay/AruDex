@@ -25,8 +25,9 @@ const PRIVATE_KEY = '0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c
 const UNISWAP_V2_ADDRESS_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 const SUSHISWAP_ADDRESS_ROUTER = '0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F'
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
-const network = await provider.getNetwork();
-console.log(network.chainId);
+
+//const network = await provider.getNetwork();
+//console.log(network.chainId);
 
 // const signer = new ethers.Wallet(process.env.PRIVATE_KEY,provider)
 const signer = new ethers.Wallet(PRIVATE_KEY, provider)
@@ -139,6 +140,10 @@ function simulateSwap(amountIn, reserveIn, reserveOut) {
   return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
 }
 
+function getAmountIn(amountOut, reserveIn, reserveOut) {
+  return (reserveIn * amountOut * 1000n) / ((reserveOut - amountOut) * 997n) + 1n;
+}
+
 
 async function Multi_Hop(amountIn, pool1, pool2) {
   const amountOut_1 = simulateSwap(amountIn, pool1.reserve1, pool1.reserve0);
@@ -222,6 +227,11 @@ export const ammCalculation = async(req) => {
 
   const oneEthStr = req.body.oneEth;
   const oneEth = ethers.parseEther(oneEthStr);
+
+  //FOR SIMULATION OUTPUT:
+  const amountInArb = 1000n * 10n ** 6n; // 1000 USDC
+
+
   // const uni = await uni_eth_usdc_pool();
   // const sushi = await sushi_eth_usdc_pool();
   // const dai = await Weth_DAI_pool();
@@ -273,7 +283,6 @@ export const ammCalculation = async(req) => {
 
   const AmountOutUni = simulateSwap(oneEth, uniReserve1, uniReserve0);
   const AmountOutSushi = simulateSwap(oneEth, sushiReserve1, sushiReserve0);
-
 
   let result;
   if (sushi.isStale) {
@@ -398,7 +407,83 @@ export const ammCalculation = async(req) => {
   );
 
 
-  
+  if (Math.abs(spotPrice_Uni - spotPrice_Sushi) < 0.5) {
+    console.log("No meaningful arbitrage opportunity");
+  }
+
+
+  // ARBITRAGE CALCULATION:
+  function Arbitrage_opp(uni, sushi, amountIn){
+    const eth_uni = simulateSwap(amountIn, uni.reserve0, uni.reserve1);
+    const usdc_sushi = simulateSwap(eth_uni, sushi.reserve1, sushi.reserve0);
+    const profit  = usdc_sushi - amountIn; 
+
+    const eth_sushi = simulateSwap(amountIn, sushi.reserve0, sushi.reserve1);
+    const usdc_uni = simulateSwap(eth_sushi, uni.reserve1, uni.reserve0);
+    const profit2 = usdc_uni - amountIn;
+
+    return {
+      uni_to_sushi:{
+        finalOutput: usdc_sushi,
+        profit: profit
+      },
+      sushi_to_uni: {
+        finalOutput: usdc_uni,
+        profit: profit2
+      }
+    }
+  }
+
+
+  let arb = null;
+  let netProfitUniToSushi = 0;
+  let netProfitSushiToUni = 0;
+
+  if (!uni.isStale && !sushi.isStale) {
+    arb = Arbitrage_opp(
+      { reserve0: uniReserve0, reserve1: uniReserve1 },
+      { reserve0: sushiReserve0, reserve1: sushiReserve1 },
+      amountInArb
+    );
+
+    const arbEthAmount = simulateSwap(amountInArb, uniReserve0, uniReserve1);
+
+    let arbGasCostUSDC = 0;
+
+    try {
+      const arbPath = isWethToken0
+        ? [uni.token0, uni.token1]
+        : [uni.token1, uni.token0];
+
+      const arbMinOut = 0n;
+
+      const arbGasEstimate = await estimateSwapGas(
+        arbEthAmount,
+        arbMinOut,
+        arbPath,
+        signer.address
+      );
+
+      const feeDataArb = await provider.getFeeData();
+      const gasCostEthArb =
+        arbGasEstimate * feeDataArb.gasPrice;
+
+      const gasEthFormatted = Number(ethers.formatEther(gasCostEthArb));
+
+      arbGasCostUSDC = gasEthFormatted * executionPrice_Uni * 2; // 2 swaps
+    } catch (err) {
+      console.log("Arb gas estimation failed, using fallback");
+      arbGasCostUSDC = 10; // fallback safety
+    }
+
+    netProfitUniToSushi =
+      Number(ethers.formatUnits(arb.uni_to_sushi.profit, 6)) -
+      arbGasCostUSDC;
+
+    netProfitSushiToUni =
+      Number(ethers.formatUnits(arb.sushi_to_uni.profit, 6)) -
+      arbGasCostUSDC;
+  }
   // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
   // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
   // const Slippage_Uni = ((spotPrice_Uni - executionPrice_Uni) / spotPrice_Uni) * 100;
@@ -464,7 +549,7 @@ export const ammCalculation = async(req) => {
       optimizedInputEth: ethers.formatEther(optimizedInputEth),
       gasLimit: gasEstimation.toString(),
       gas_cost_usdc: gas_cost_usdc.toFixed(6),
-      effectiveOutput: effectiveOutput.toFixed(6)
+      effectiveOutput: effectiveOutput.toFixed(6),
     },
     sushiswap: {
       usdcOutRaw: AmountOutSushi.toString(),
@@ -480,8 +565,20 @@ export const ammCalculation = async(req) => {
     },
     totalUsdcOutputRaw: result.bestOutput.toString(), 
     totalUsdcOutput: ethers.formatUnits(result.bestOutput, 6),
-    totalEffectiveOutput: effectiveOutput.toFixed(6),
+    totalEffectiveOutput: Math.max(effectiveOutput, effectiveOutput_sushi).toFixed(6),
   
+    arb: arb ? {
+      uni_to_sushi: {
+        profit: ethers.formatUnits(arb.uni_to_sushi.profit, 6),
+        netProfit: netProfitUniToSushi.toFixed(6)
+      },
+      sushi_to_uni: {
+        profit: ethers.formatUnits(arb.sushi_to_uni.profit, 6),
+        netProfit: netProfitSushiToUni.toFixed(6)
+      }
+    } : {
+      message: "Arbitrage skipped (stale pool)"
+    },
     bestOverall: bestEffective.toFixed(6)
   };
   return { poolLogs, ammLogs };
