@@ -23,6 +23,7 @@ import { getAll_POOL_Logs } from './pool.js'
 const PRIVATE_KEY = '0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0'
 
 const UNISWAP_V2_ADDRESS_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
+const SUSHISWAP_ADDRESS_ROUTER = '0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F'
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
 const network = await provider.getNetwork();
 console.log(network.chainId);
@@ -79,9 +80,60 @@ async function executeSwap(amountIn, minOut, path, wallet) {
 }
 
 
-function getAmountOut(amountIn, reserveIn, reserveOut) {
-  return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
+
+async function estimateSushiSwapGas(amountIn, minOut, path, wallet) {
+  const router = new ethers.Contract(
+    SUSHISWAP_ADDRESS_ROUTER,
+    routerAbi,
+    signer
+  );
+
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 5;
+
+  const gas = await router.swapExactETHForTokens.estimateGas(
+    minOut,
+    path,
+    wallet,
+    deadline,
+    { value: amountIn }
+  );
+
+  return gas;
 }
+
+async function executeSushiSwap(amountIn, minOut, path, wallet) {
+  const router = new ethers.Contract(
+    SUSHISWAP_ADDRESS_ROUTER,
+    routerAbi,
+    signer
+  );
+
+  const deadline = Math.floor(Date.now() / 1000) + 60 * 5;
+
+  const tx = await router.swapExactETHForTokens(
+    minOut,
+    path,
+    wallet,
+    deadline,
+    {
+      value: amountIn,
+      gasLimit: 300000 // safe buffer
+    }
+  );
+
+  console.log("TX SENT:", tx.hash);
+  const receipt = await tx.wait();
+  console.log("TX CONFIRMED:", receipt.transactionHash);
+
+  return receipt;
+}
+
+
+
+
+// function getAmountOut(amountIn, reserveIn, reserveOut) {
+//   return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
+// }
 
 function simulateSwap(amountIn, reserveIn, reserveOut) {
   return (reserveOut * amountIn * 997n) / (reserveIn * 1000n + amountIn * 997n)
@@ -154,7 +206,7 @@ function binaryBestSplit(totalAmount, uniPool, sushiPool) {
 // const amountOut = (reserveOut * amountIn * 997) /
 //   (reserveIn * 1000 + amountIn * 997);
 
-export { executeSwap, estimateSwapGas };
+export { executeSwap, estimateSwapGas, executeSushiSwap, estimateSushiSwapGas };
 
 
 export const ammCalculation = async(req) => {
@@ -290,6 +342,62 @@ export const ammCalculation = async(req) => {
   const gas_cost_usdc = Number(gasCostEth) * executionPrice_Uni;
   const effectiveOutput = Number(ethers.formatUnits(AmountOutUni, 6)) - gas_cost_usdc;
 
+
+
+  
+  
+
+  const Sushi_reserve0 = Number(ethers.formatUnits(sushi.reserve0, 6));
+  const Sushi_reserve1 = Number(ethers.formatUnits(sushi.reserve1, 18));
+
+  const spotPrice_Sushi = Sushi_reserve0 / Sushi_reserve1;
+  const executionPrice_Sushi = Number(ethers.formatUnits(simulateSwap(oneEth, sushiReserve1, sushiReserve0), 6)) / Number(ethers.formatEther(oneEth));
+  const Slippage_Sushi = ((executionPrice_Sushi - spotPrice_Sushi) / spotPrice_Sushi) * 100;
+
+  if (Math.abs(Slippage_Sushi) > 2) {
+    throw new Error("Slippage too high for SushiSwap");
+  }
+
+
+  // const path = [uni.token1, uni.token0]
+  const isWethToken0_sushi = sushi.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
+
+  const path_sushi= isWethToken0_sushi
+    ? [sushi.token0, sushi.token1]
+    : [sushi.token1, sushi.token0];
+  const router_sushi = new ethers.Contract(SUSHISWAP_ADDRESS_ROUTER, routerAbi, signer)
+  const amounts_SUSHI = await router_sushi.getAmountsOut(oneEth, path_sushi);
+  //const expectedOutOptimized = simulateSwap(optimizedInputEth,uniReserve1,uniReserve0);
+  const expectedOut_sushi = amounts_SUSHI[amounts_SUSHI.length - 1];
+  const minOut_sushi = expectedOut_sushi * 99n / 100n;
+  // const minOut = AmountOutUni * 99n / 100n;
+
+
+
+  //const gasEstimation = await estimateSwapGas(oneEth, minOut, path, signer.address);
+  const gasEstimation_sushi = await estimateSushiSwapGas(
+    oneEth,
+    minOut_sushi,
+    path_sushi,
+    signer.address
+  );
+
+
+  const feeData_sushi = await provider.getFeeData();
+  const gasPrice_sushi = feeData_sushi.gasPrice;
+  const estimatedGasCost_sushi = gasEstimation_sushi * gasPrice_sushi;
+  const gasCostEth_sushi = ethers.formatEther(estimatedGasCost_sushi);
+  const gas_cost_usdc_sushi = Number(gasCostEth_sushi) * executionPrice_Sushi;
+  const effectiveOutput_sushi = Number(ethers.formatUnits(AmountOutSushi, 6)) - gas_cost_usdc_sushi;
+
+
+
+  const bestEffective = Math.max(
+    Number(effectiveOutput),
+    Number(effectiveOutput_sushi)
+  );
+
+
   
   // const spotPrice_Uni = ethers.formatUnits(uni.reserve0, 6) / ethers.formatUnits(uni.reserve1, 18);
   // const executionPrice_Uni = ethers.formatUnits(uniAmountOut, 6);
@@ -363,11 +471,18 @@ export const ammCalculation = async(req) => {
       //usdcWeth: ethers.formatUnits(sushiAmountOut, 6),
       usdcOut: ethers.formatUnits(AmountOutSushi, 6),
       optimizedInputEth: ethers.formatEther(result.sushiInput),
+      spotPrice: spotPrice_Sushi,
+      executionPrice: executionPrice_Sushi,
+      slippage: Slippage_Sushi,
+      gasLimit: gasEstimation_sushi.toString(),
+      gas_cost_usdc: gas_cost_usdc_sushi.toFixed(6),
+      effectiveOutput: effectiveOutput_sushi.toFixed(6)
     },
     totalUsdcOutputRaw: result.bestOutput.toString(), 
     totalUsdcOutput: ethers.formatUnits(result.bestOutput, 6),
     totalEffectiveOutput: effectiveOutput.toFixed(6),
-    bestOverall: effectiveOutput.toFixed(6)
+  
+    bestOverall: bestEffective.toFixed(6)
   };
   return { poolLogs, ammLogs };
 }
