@@ -353,64 +353,62 @@ export const ammCalculation = async(req) => {
 
 
 
+  let spotPrice_Sushi = 0;
+  let executionPrice_Sushi = 0;
+  let Slippage_Sushi = 0;
+  let gasEstimation_sushi = 0n;
+  let gas_cost_usdc_sushi = 0;
+  let effectiveOutput_sushi = 0;
+
   
-  
 
-  const Sushi_reserve0 = Number(ethers.formatUnits(sushi.reserve0, 6));
-  const Sushi_reserve1 = Number(ethers.formatUnits(sushi.reserve1, 18));
+  if(!sushi.isStale){
+    const Sushi_reserve0 = Number(ethers.formatUnits(sushi.reserve0, 6));
+    const Sushi_reserve1 = Number(ethers.formatUnits(sushi.reserve1, 18));
 
-  const spotPrice_Sushi = Sushi_reserve0 / Sushi_reserve1;
-  const executionPrice_Sushi = Number(ethers.formatUnits(simulateSwap(oneEth, sushiReserve1, sushiReserve0), 6)) / Number(ethers.formatEther(oneEth));
-  const Slippage_Sushi = ((executionPrice_Sushi - spotPrice_Sushi) / spotPrice_Sushi) * 100;
+    spotPrice_Sushi = Sushi_reserve0 / Sushi_reserve1;
+    executionPrice_Sushi = Number(ethers.formatUnits(simulateSwap(oneEth, sushiReserve1, sushiReserve0), 6)) / Number(ethers.formatEther(oneEth));
+    Slippage_Sushi = ((executionPrice_Sushi - spotPrice_Sushi) / spotPrice_Sushi) * 100;
 
-  if (Math.abs(Slippage_Sushi) > 2) {
-    throw new Error("Slippage too high for SushiSwap");
+
+    if (Math.abs(Slippage_Sushi) > 2) {
+      throw new Error("Slippage too high for SushiSwap");
+    }
+
+    const isWethToken0_sushi = sushi.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
+    const path_sushi = isWethToken0_sushi ? [sushi.token0, sushi.token1] : [sushi.token1, sushi.token0];
+    const router_sushi = new ethers.Contract(SUSHISWAP_ADDRESS_ROUTER, routerAbi, signer)
+    const amounts_SUSHI = await router_sushi.getAmountsOut(oneEth, path_sushi);
+    //const expectedOutOptimized = simulateSwap(optimizedInputEth,uniReserve1,uniReserve0);
+    const expectedOut_sushi = amounts_SUSHI[amounts_SUSHI.length - 1];
+    const minOut_sushi = expectedOut_sushi * 99n / 100n;
+
+    gasEstimation_sushi = await estimateSushiSwapGas(
+      oneEth,
+      minOut_sushi,
+      path_sushi,
+      signer.address
+    );
+
+    const feeData_sushi = await provider.getFeeData();
+    const gasPrice_sushi = feeData_sushi.gasPrice;
+    const estimatedGasCost_sushi = gasEstimation_sushi * gasPrice_sushi;
+    const gasCostEth_sushi = ethers.formatEther(estimatedGasCost_sushi);
+    gas_cost_usdc_sushi = Number(gasCostEth_sushi) * executionPrice_Sushi;
+    effectiveOutput_sushi = Number(ethers.formatUnits(AmountOutSushi, 6)) - gas_cost_usdc_sushi;
+  } else{
+    console.log("Skipping SushiSwap calculations as it is stale pool");
   }
-
-
+  
   // const path = [uni.token1, uni.token0]
-  const isWethToken0_sushi = sushi.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
-
-  const path_sushi= isWethToken0_sushi
-    ? [sushi.token0, sushi.token1]
-    : [sushi.token1, sushi.token0];
-  const router_sushi = new ethers.Contract(SUSHISWAP_ADDRESS_ROUTER, routerAbi, signer)
-  const amounts_SUSHI = await router_sushi.getAmountsOut(oneEth, path_sushi);
-  //const expectedOutOptimized = simulateSwap(optimizedInputEth,uniReserve1,uniReserve0);
-  const expectedOut_sushi = amounts_SUSHI[amounts_SUSHI.length - 1];
-  const minOut_sushi = expectedOut_sushi * 99n / 100n;
   // const minOut = AmountOutUni * 99n / 100n;
-
-
-
   //const gasEstimation = await estimateSwapGas(oneEth, minOut, path, signer.address);
-  const gasEstimation_sushi = await estimateSushiSwapGas(
-    oneEth,
-    minOut_sushi,
-    path_sushi,
-    signer.address
-  );
 
-
-  const feeData_sushi = await provider.getFeeData();
-  const gasPrice_sushi = feeData_sushi.gasPrice;
-  const estimatedGasCost_sushi = gasEstimation_sushi * gasPrice_sushi;
-  const gasCostEth_sushi = ethers.formatEther(estimatedGasCost_sushi);
-  const gas_cost_usdc_sushi = Number(gasCostEth_sushi) * executionPrice_Sushi;
-  const effectiveOutput_sushi = Number(ethers.formatUnits(AmountOutSushi, 6)) - gas_cost_usdc_sushi;
-
-
-
-  const bestEffective = Math.max(
-    Number(effectiveOutput),
-    Number(effectiveOutput_sushi)
-  );
-
+  const bestEffective = sushi.isStale ? Number(effectiveOutput) : Math.max(Number(effectiveOutput), Number(effectiveOutput_sushi));
 
   if (Math.abs(spotPrice_Uni - spotPrice_Sushi) < 0.5) {
     console.log("No meaningful arbitrage opportunity");
   }
-
 
   // ARBITRAGE CALCULATION:
   function Arbitrage_opp(uni, sushi, amountIn){

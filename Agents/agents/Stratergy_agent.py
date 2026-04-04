@@ -252,3 +252,8 @@ Return ONLY JSON.
         )
 
     return response
+
+
+def stratergy_agent(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> StrategyDecision:
+    # Backwards-compatible alias expected by FastAPI import wiring
+    return strategy_agent(pool_logs, amm_logs)
