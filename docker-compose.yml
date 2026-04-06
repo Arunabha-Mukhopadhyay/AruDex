@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    container_name: arudex-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app # For live reload in dev
+    command: ["sh", "-c", "chmod +x ./wait-for-hardhat.sh && ./wait-for-hardhat.sh hardhat:8545 60 && npm run start"]
+
+  frontend:
+    build: ./Frontend/dex_frontend
+    container_name: arudex-frontend
+    ports:
+      - "5173:5173"
+    restart: unless-stopped
+    volumes:
+      - ./Frontend/dex_frontend:/app # For live reload in dev
+    command: ["npm", "run", "dev"]
+
+  agents:
+    build: ./Agents
+    container_name: arudex-agents
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    volumes:
+      - ./Agents:/app
+    command: ["uvicorn", "app:app", "--reload", "--host", "0.0.0.0", "--port", "5000"]
+
+  hardhat:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: ["npx", "hardhat", "node", "--network", "hardhat"]
+    # To run other hardhat commands, override the command in docker-compose run
