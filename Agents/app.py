@@ -53,3 +53,14 @@ async def execute_sim(payload:ExecutionRequest) -> ExecutionPlan:
         return Execution_agent(payload.strategy_output,payload.amm_logs,payload.pool_logs)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=5000,
+        reload=False,
+    )

@@ -1,5 +1,5 @@
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
-import { configVariable, defineConfig } from "hardhat/config";
+import { defineConfig } from "hardhat/config";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -26,19 +26,13 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "l1",
       forking: {
-        url: process.env.ALCHEMY_RPC_URL!,
-        blockNumber: 21830000
-      }
-    },                          
+        url: process.env.ALCHEMY_RPC_URL || "",
+        blockNumber: 21830000,
+      },
+    },
     hardhatOp: {
       type: "edr-simulated",
       chainType: "op",
     },
-    sepolia: {
-      type: "http",
-      chainType: "l1",
-      url: configVariable("SEPOLIA_RPC_URL"),
-      accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
-    },
-  },            
-});
+  },
+}); 

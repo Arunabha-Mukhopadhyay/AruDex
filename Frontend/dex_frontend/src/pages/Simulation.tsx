@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 
 function Simulation() {
@@ -13,7 +13,8 @@ function Simulation() {
       setLoading(true);
       setError(null);
 
-      const res = await axios.post('http://localhost:3000/api/amm', {
+      const baseUrl = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
+      const res = await axios.post(`${baseUrl}/api/amm`, {
         //amount,
         oneEth
       });

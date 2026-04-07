@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   backend:
     build: ./backend
@@ -6,36 +5,46 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
+      PROVIDER_URL: http://hardhat:8545
+      STRATEGY_AGENT_URL: http://agents:5000/api/strategy
+      EXECUTION_AGENT_URL: http://agents:5000/api/execution
+    depends_on:
+      - hardhat
+      - agents
     restart: unless-stopped
-    volumes:
-      - ./backend:/app # For live reload in dev
     command: ["sh", "-c", "chmod +x ./wait-for-hardhat.sh && ./wait-for-hardhat.sh hardhat:8545 60 && npm run start"]
 
   frontend:
-    build: ./Frontend/dex_frontend
+    build:
+      context: ./Frontend/dex_frontend
+      args:
+        VITE_BACKEND_URL: http://backend:3000
     container_name: arudex-frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
+    depends_on:
+      - backend
     restart: unless-stopped
-    volumes:
-      - ./Frontend/dex_frontend:/app # For live reload in dev
-    command: ["npm", "run", "dev"]
 
   agents:
     build: ./Agents
     container_name: arudex-agents
     ports:
-      - "5000:5000"
+      - "5001:5000"
+    env_file:
+      - .env
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:?GROQ_API_KEY is required for the agents service}
     restart: unless-stopped
-    volumes:
-      - ./Agents:/app
-    command: ["uvicorn", "app:app", "--reload", "--host", "0.0.0.0", "--port", "5000"]
 
   hardhat:
-    image: node:18-alpine
-    working_dir: /app
-    volumes:
-      - ./:/app
-    command: ["npx", "hardhat", "node", "--network", "hardhat"]
-    # To run other hardhat commands, override the command in docker-compose run
+    build:
+      context: .
+      dockerfile: Dockerfile.hardhat
+    container_name: arudex-hardhat
+    ports:
+      - "8545:8545"
+    env_file:
+      - .env
+    restart: unless-stopped
