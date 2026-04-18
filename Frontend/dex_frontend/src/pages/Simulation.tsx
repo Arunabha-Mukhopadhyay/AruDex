@@ -42,7 +42,8 @@ function Simulation() {
           Pool simulation
         </h1>
         <p className="panel-desc">
-          POST to your backend <code>/api/amm</code> with an ETH amount and inspect the response.
+          Enter an ETH amount and send a POST request to <code>/api/amm </code>to simulate a swap.
+          The response shows real-time pool data, estimated output (USDC), and slippage, helping you understand the trade before execution.
         </p>
       </div>
 
