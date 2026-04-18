@@ -1,9 +1,8 @@
-import { useState } from 'react';
-import axios from 'axios';
+import { useState } from "react";
+import axios from "axios";
 
 function Simulation() {
-  //const [amount, setAmount] = useState<string>('');
-  const [oneEth, setOneEth] = useState<string>('');
+  const [oneEth, setOneEth] = useState("");
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -13,45 +12,74 @@ function Simulation() {
       setLoading(true);
       setError(null);
 
-      const baseUrl = import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3000';
-      const res = await axios.post(`${baseUrl}/api/amm`, {
-        //amount,
-        oneEth
-      });
+      const baseUrl = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3000";
+      const res = await axios.post(`${baseUrl}/api/amm`, { oneEth });
 
       if (!res.data) {
         throw new Error("No data returned from API");
       }
 
       setData(res.data);
-
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Request failed";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-
-
+  const runSimulation = () => {
+    setLoading(true);
+    setError(null);
+    setData(null);
+    void fetchData();
+  };
 
   return (
-    <div>
-      <input 
-        type="text"
-        value={oneEth}
-        onChange={(e)=>setOneEth(e.target.value)}
-        placeholder='Enter the amount of eth'
-        required
-      />
-      <button onClick={() => { setLoading(true); setError(null); setData(null); fetchData(); }} disabled={loading}>
-        {loading ? 'Simulating...' : 'Simulate'}
-      </button>
-      {error && <div style={{ color: 'red' }}>Error: {error}</div>}
-      {data && <pre>{JSON.stringify(data, null, 2)}</pre>}
-    </div>
-  );
+    <section className="panel" aria-labelledby="sim-title">
+      <div className="panel-header">
+        <h1 id="sim-title" className="panel-title">
+          Pool simulation
+        </h1>
+        <p className="panel-desc">
+          POST to your backend <code>/api/amm</code> with an ETH amount and inspect the response.
+        </p>
+      </div>
 
+      <div className="input-row">
+        <div className="field">
+          <label htmlFor="eth-amount">ETH amount</label>
+          <input
+            id="eth-amount"
+            type="text"
+            inputMode="decimal"
+            value={oneEth}
+            onChange={(e) => setOneEth(e.target.value)}
+            placeholder="e.g. 1 or 0.5"
+            autoComplete="off"
+          />
+        </div>
+        <div className="btn-primary-wrap">
+          <button type="button" className="btn-primary" onClick={runSimulation} disabled={loading}>
+            {loading ? "Running…" : "Simulate"}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="alert-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {data && (
+        <div className="output-block">
+          <div className="output-label">Response</div>
+          <pre className="code-block">{JSON.stringify(data, null, 2)}</pre>
+        </div>
+      )}
+    </section>
+  );
 }
 
 export default Simulation;
