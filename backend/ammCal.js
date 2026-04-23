@@ -414,12 +414,18 @@ export const ammCalculation = async(req) => {
 
   
   //const gasEstimation = await estimateSwapGas(oneEth, minOut, path, signer.address);
-  const gasEstimation = await estimateSwapGas(
-    optimizedInputEth,
-    minOut,
-    path,
-    signer.address
-  );
+  let gasEstimation;
+  try {
+    gasEstimation = await estimateSwapGas(
+      optimizedInputEth,
+      minOut,
+      path,
+      signer.address
+    );
+  } catch (err) {
+    console.log("Gas estimation failed (no local node?), using fallback:", err.message);
+    gasEstimation = 150000n; // typical Uniswap V2 swap gas
+  }
 
 
   const feeData = await provider.getFeeData();
@@ -461,12 +467,17 @@ export const ammCalculation = async(req) => {
     const expectedOut_sushi = amounts_SUSHI[amounts_SUSHI.length - 1];
     const minOut_sushi = expectedOut_sushi * 99n / 100n;
 
-    gasEstimation_sushi = await estimateSushiSwapGas(
-      oneEth,
-      minOut_sushi,
-      path_sushi,
-      signer.address
-    );
+    try {
+      gasEstimation_sushi = await estimateSushiSwapGas(
+        oneEth,
+        minOut_sushi,
+        path_sushi,
+        signer.address
+      );
+    } catch (err) {
+      console.log("SushiSwap gas estimation failed, using fallback:", err.message);
+      gasEstimation_sushi = 150000n;
+    }
 
     const feeData_sushi = await provider.getFeeData();
     const gasPrice_sushi = feeData_sushi.gasPrice;
