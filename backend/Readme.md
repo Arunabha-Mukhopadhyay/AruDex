@@ -15,6 +15,9 @@ The system fetches live liquidity pool data and calculates optimal swap outputs,
 - Slippage estimation
 - Binary search optimization for best split
 - AMM price simulation
+- Birdeye token discovery via trending + new listing feeds
+- Birdeye token quality filtering (liquidity, volume, price-change)
+- Birdeye external price sanity checks against pool-derived pricing
 
 ---
 
@@ -40,6 +43,7 @@ backend/
 ├── factoryAbi.js # Uniswap factory ABI
 ├── pairAbi.js # pair contract ABI
 ├── config.js # RPC configuration
+├── birdeye.js # Birdeye API integration (discovery + price validation)
 ├── .env # RPC keys
 └── README.md
 
@@ -89,6 +93,17 @@ Implemented:
 - Slippage calculation
 - Binary search split optimization
 - Multi-hop routing
+- Birdeye-powered token discovery shortlist
+- Birdeye price sanity-check + deviation flagging
+
+## Environment Variables
+
+- `PROVIDER_URL` – JSON-RPC URL for pool reads/swap simulation
+- `STRATEGY_AGENT_URL`, `EXECUTION_AGENT_URL` – Agent endpoints
+- `BIRDEYE_API_KEY` – enables Birdeye integration
+- `BIRDEYE_CHAIN` – Birdeye chain header (default `ethereum`)
+- `BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT` – alert threshold for pool-vs-oracle price gap
+- `BIRDEYE_MIN_LIQUIDITY_USD`, `BIRDEYE_MIN_VOLUME_24H_USD`, `BIRDEYE_MAX_ABS_PRICE_CHANGE_24H` – discovery filter controls
 
 
 Similar systems include:

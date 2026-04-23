@@ -6,7 +6,25 @@ import { EXECUTION_AGENT_URL } from './config.js'
 import { ammCalculation , executeSwap, estimateSwapGas } from './ammCal.js'
 
 const app = express()
-app.use(cors());
+
+const allowedOrigins = [
+  'https://arudex.onrender.com',
+  'http://localhost:5173',   // Vite dev server
+  'http://localhost:3000',
+];
+
+app.use(cors({
+  origin(origin, callback) {
+    // allow requests with no origin (curl, server-to-server, mobile apps)
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+}));
+
 app.use(express.json())
 
 

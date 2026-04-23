@@ -1,1 +1,11 @@
-ALCHEMY_RPC_URL=your_rpc_url
+PROVIDER_URL=http://127.0.0.1:8545
+STRATEGY_AGENT_URL=http://127.0.0.1:8000/api/strategy
+EXECUTION_AGENT_URL=http://127.0.0.1:8000/api/execution
+
+# Optional Birdeye enrichment (token discovery + price sanity checks)
+BIRDEYE_API_KEY=your_birdeye_api_key
+BIRDEYE_CHAIN=ethereum
+BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT=3
+BIRDEYE_MIN_LIQUIDITY_USD=250000
+BIRDEYE_MIN_VOLUME_24H_USD=100000
+BIRDEYE_MAX_ABS_PRICE_CHANGE_24H=80

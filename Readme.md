@@ -5,6 +5,8 @@ AruDex is an intent-driven decentralized exchange (DEX) aggregator that combines
 ## Highlights
 - Fetches WETH/USDC, WETH/DAI, and DAI/USDC reserves from both Uniswap V2 and SushiSwap factories using `backend/pool.js`.
 - Simulates swap outputs and slippage with `backend/ammCal.js`, including binary-search liquidity splitting and optional WETH→DAI→USDC multi-hop routes.
+- Adds a Birdeye intelligence layer (`/defi/token_trending`, `/defi/v2/tokens/new_listing`, `/defi/token_overview`) to surface liquid/high-volume candidates before route evaluation.
+- Validates pool-implied ETH price against Birdeye `/defi/price` and emits risk flags when deviation crosses a configurable threshold.
 - Delegates routing selection to a **Strategy Agent** and transaction assembly to an **Execution Agent** (FastAPI + LangChain + Groq Llama 3.3) before returning an execution recipe.
 - Ships a React + Vite frontend with wagmi wallet support so you can input an amount of ETH, call the backend, and inspect the recommended plan.
 - Uses Hardhat v3 tooling to fork Ethereum mainnet for deterministic local testing and to supply the JSON-RPC endpoint consumed by every component.
@@ -37,6 +39,10 @@ AruDex/
 - Environment (`backend/.env`):
   - `PROVIDER_URL` – JSON-RPC source (default `http://127.0.0.1:8545`).
   - `STRATEGY_AGENT_URL`, `EXECUTION_AGENT_URL` – FastAPI endpoints.
+  - `BIRDEYE_API_KEY` – enables Birdeye discovery + price validation.
+  - `BIRDEYE_CHAIN` – chain header for Birdeye calls (default `ethereum`).
+  - `BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT` – threshold for price-sanity flagging.
+  - `BIRDEYE_MIN_LIQUIDITY_USD`, `BIRDEYE_MIN_VOLUME_24H_USD`, `BIRDEYE_MAX_ABS_PRICE_CHANGE_24H` – token quality filters for discovery.
   - Optional `PRIVATE_KEY` if you do not want to use the built-in test key.
 
 ### Agents/
@@ -79,6 +85,8 @@ AruDex/
    PROVIDER_URL=http://127.0.0.1:8545
    STRATEGY_AGENT_URL=http://127.0.0.1:8000/api/strategy
    EXECUTION_AGENT_URL=http://127.0.0.1:8000/api/execution
+   BIRDEYE_API_KEY=your-birdeye-key
+   BIRDEYE_CHAIN=ethereum
 
    # Agents/.env
    GROQ_API_KEY=sk-y0ur-groq-key

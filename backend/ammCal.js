@@ -1,9 +1,18 @@
 import { ethers } from "ethers";
 import { routerAbi } from './factoryAbi.js'
-import { PROVIDER_URL } from "./config.js";
+import {
+  BIRDEYE_CHAIN,
+  BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT,
+  PROVIDER_URL
+} from "./config.js";
 // import { poolSushiSwap, readReserves, Weth_DAI_pool, DAI_USDC_pool } from "./pool.js";
 // import { uni_eth_usdc_pool, sushi_eth_usdc_pool, Weth_Dai_pool, Dai_Usdc_pool, Weth_DAI_pool } from "./pool.js";
 import { getAll_POOL_Logs } from './pool.js'
+import {
+  buildBirdeyeTokenDiscovery,
+  getTokenPriceFromBirdeye,
+  isBirdeyeConfigured
+} from './birdeye.js';
 
 // const serializePoolLog = (label, pool) => {
 //   if (!pool) {
@@ -24,6 +33,7 @@ const PRIVATE_KEY = '0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c
 
 const UNISWAP_V2_ADDRESS_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'
 const SUSHISWAP_ADDRESS_ROUTER = '0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F'
+const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
 
 //const network = await provider.getNetwork();
@@ -212,6 +222,73 @@ function binaryBestSplit(totalAmount, uniPool, sushiPool) {
 //   (reserveIn * 1000 + amountIn * 997);
 
 export { executeSwap, estimateSwapGas, executeSushiSwap, estimateSushiSwapGas };
+const buildPriceValidationLog = async ({ uniswapSpotPrice, sushiswapSpotPrice }) => {
+  if (!isBirdeyeConfigured()) {
+    return {
+      status: 'skipped',
+      reason: 'BIRDEYE_API_KEY is not configured',
+      thresholdPercent: BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT
+    };
+  }
+
+  try {
+    const birdeyePrice = await getTokenPriceFromBirdeye(WETH_ADDRESS);
+    const birdeyeValue = birdeyePrice?.value ?? null;
+
+    if (birdeyeValue === null) {
+      return {
+        status: 'unavailable',
+        reason: 'Birdeye returned null price for WETH',
+        thresholdPercent: BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT
+      };
+    }
+
+    const uniswapDeviationPercent =
+      ((uniswapSpotPrice - birdeyeValue) / birdeyeValue) * 100;
+    const sushiswapDeviationPercent =
+      sushiswapSpotPrice === null
+        ? null
+        : ((sushiswapSpotPrice - birdeyeValue) / birdeyeValue) * 100;
+
+    const isUniswapDeviationHigh =
+      Math.abs(uniswapDeviationPercent) > BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT;
+    const isSushiswapDeviationHigh =
+      sushiswapDeviationPercent !== null &&
+      Math.abs(sushiswapDeviationPercent) > BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT;
+
+    return {
+      status: isUniswapDeviationHigh || isSushiswapDeviationHigh ? 'flagged' : 'ok',
+      flag: isUniswapDeviationHigh || isSushiswapDeviationHigh
+        ? 'Price deviation detected'
+        : null,
+      thresholdPercent: BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT,
+      chain: BIRDEYE_CHAIN,
+      birdeyePriceUsd: birdeyeValue,
+      poolPriceUsd: {
+        uniswap: uniswapSpotPrice,
+        sushiswap: sushiswapSpotPrice
+      },
+      deviationPercent: {
+        uniswap: Number(uniswapDeviationPercent.toFixed(4)),
+        sushiswap:
+          sushiswapDeviationPercent === null
+            ? null
+            : Number(sushiswapDeviationPercent.toFixed(4))
+      },
+      source: {
+        updateUnixTime: birdeyePrice?.updateUnixTime ?? null,
+        updateHumanTime: birdeyePrice?.updateHumanTime ?? null,
+        liquidityUsd: birdeyePrice?.liquidityUsd ?? null
+      }
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      reason: error.message,
+      thresholdPercent: BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT
+    };
+  }
+};
 
 
 export const ammCalculation = async(req) => {
@@ -227,6 +304,7 @@ export const ammCalculation = async(req) => {
 
   const oneEthStr = req.body.oneEth;
   const oneEth = ethers.parseEther(oneEthStr);
+  const birdeyeDiscovery = await buildBirdeyeTokenDiscovery();
 
   //FOR SIMULATION OUTPUT:
   const amountInArb = 1000n * 10n ** 6n; // 1000 USDC
@@ -238,6 +316,7 @@ export const ammCalculation = async(req) => {
   // const dai_usdc = await Dai_Usdc_pool();
 
   const poolLogs = await getAll_POOL_Logs()
+  poolLogs.birdeyeDiscovery = birdeyeDiscovery;
 
   const uni = poolLogs.uniswapEthUsdc
   const sushi = poolLogs.sushiswapEthUsdc
@@ -320,7 +399,6 @@ export const ammCalculation = async(req) => {
 
 
   // const path = [uni.token1, uni.token0]
-  const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
   const isWethToken0 = uni.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
 
   const path = isWethToken0
@@ -399,6 +477,11 @@ export const ammCalculation = async(req) => {
   } else{
     console.log("Skipping SushiSwap calculations as it is stale pool");
   }
+
+  const priceValidation = await buildPriceValidationLog({
+    uniswapSpotPrice: spotPrice_Uni,
+    sushiswapSpotPrice: sushi.isStale ? null : spotPrice_Sushi
+  });
   
   // const path = [uni.token1, uni.token0]
   // const minOut = AmountOutUni * 99n / 100n;
@@ -536,6 +619,10 @@ export const ammCalculation = async(req) => {
   // console.log(poolLogs)
 
   const ammLogs = {
+    birdeye: {
+      discovery: birdeyeDiscovery,
+      priceValidation
+    },
     multiHopOutput: ethers.formatUnits(amountOut_MultiHop, 6),
     uniswap: {
       usdcOutRaw: AmountOutUni.toString(), 
@@ -577,7 +664,11 @@ export const ammCalculation = async(req) => {
     } : {
       message: "Arbitrage skipped (stale pool)"
     },
-    bestOverall: bestEffective.toFixed(6)
+    bestOverall: bestEffective.toFixed(6),
+    riskFlags:
+      priceValidation?.status === 'flagged' && priceValidation?.flag
+        ? [priceValidation.flag]
+        : []
   };
   return { poolLogs, ammLogs };
 }
