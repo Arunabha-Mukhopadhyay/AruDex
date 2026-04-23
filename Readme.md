@@ -1,123 +1,261 @@
 # AruDex – Intent-Based DEX Aggregator
 
-AruDex is an intent-driven decentralized exchange (DEX) aggregator that combines live on-chain liquidity data, deterministic agent reasoning, and a lightweight React dashboard to recommend and simulate best-execution swaps across Uniswap V2 and SushiSwap pools. The system continuously measures pool freshness, simulates single-hop, split, and multi-hop routes, and produces an execution checklist that can be replayed on-chain.
+> An intent-driven decentralized exchange aggregator that combines live on-chain liquidity data, Birdeye market intelligence, and AI-powered agent reasoning to recommend best-execution swaps across Uniswap V2 and SushiSwap.
+
+**🌐 Live Demo:** [arudex.onrender.com](https://arudex.onrender.com)
+
+---
 
 ## Highlights
-- Fetches WETH/USDC, WETH/DAI, and DAI/USDC reserves from both Uniswap V2 and SushiSwap factories using `backend/pool.js`.
-- Simulates swap outputs and slippage with `backend/ammCal.js`, including binary-search liquidity splitting and optional WETH→DAI→USDC multi-hop routes.
-- Adds a Birdeye intelligence layer (`/defi/token_trending`, `/defi/v2/tokens/new_listing`, `/defi/token_overview`) to surface liquid/high-volume candidates before route evaluation.
-- Validates pool-implied ETH price against Birdeye `/defi/price` and emits risk flags when deviation crosses a configurable threshold.
-- Delegates routing selection to a **Strategy Agent** and transaction assembly to an **Execution Agent** (FastAPI + LangChain + Groq Llama 3.3) before returning an execution recipe.
-- Ships a React + Vite frontend with wagmi wallet support so you can input an amount of ETH, call the backend, and inspect the recommended plan.
-- Uses Hardhat v3 tooling to fork Ethereum mainnet for deterministic local testing and to supply the JSON-RPC endpoint consumed by every component.
+
+- **Real-time pool data** — Reads WETH/USDC, WETH/DAI, and DAI/USDC reserves from both Uniswap V2 and SushiSwap factories directly on-chain.
+- **Smart route optimization** — Simulates single-hop, split-liquidity, and multi-hop (WETH→DAI→USDC) routes with binary-search optimization to maximize output.
+- **Birdeye intelligence layer** — Surfaces trending tokens and new listings via Birdeye API (`/defi/token_trending`, `/defi/v2/tokens/new_listing`, `/defi/token_overview`), applies quality filters (liquidity, volume, price stability), and validates pool-implied prices against Birdeye oracle pricing.
+- **AI-powered strategy & execution** — A Strategy Agent selects the optimal routing venue; an Execution Agent assembles concrete swap steps with gas estimation, slippage guards, and path validation — all powered by Groq Llama 3.3 70B.
+- **Dual-mode deployment** — Works seamlessly on both a local Hardhat fork (exact gas simulation) and Alchemy mainnet RPC (fallback gas estimation) with zero code changes.
+- **React dashboard** — Ships a Vite + wagmi frontend with MetaMask wallet connection for inputting ETH amounts and inspecting recommended execution plans.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph User
+        FE["Frontend\n(React + Vite)\narudex.onrender.com"]
+    end
+
+    subgraph Backend["Backend (Node.js + Express)"]
+        API["POST /api/amm"]
+        AMM["ammCal.js\nAMM Math + Routing"]
+        POOL["pool.js\nPool Reserve Reader"]
+        BE["birdeye.js\nToken Discovery\n+ Price Validation"]
+    end
+
+    subgraph Agents["Agents (Python + FastAPI)"]
+        SA["Strategy Agent\nRoute Selection"]
+        EA["Execution Agent\nSwap Plan Assembly"]
+    end
+
+    subgraph External
+        ALCHEMY["Alchemy RPC\n(Mainnet / Hardhat)"]
+        BIRDEYE["Birdeye API\npublic-api.birdeye.so"]
+        GROQ["Groq LLM\nLlama 3.3 70B"]
+    end
+
+    FE -->|"POST /api/amm\n{oneEth: '40'}"| API
+    API --> AMM
+    AMM --> POOL
+    AMM --> BE
+    POOL -->|"getReserves()\ngetAmountsOut()"| ALCHEMY
+    BE -->|"Trending, Listings\nPrice, Overview"| BIRDEYE
+    API -->|"poolLogs + ammLogs"| SA
+    SA -->|"StrategyDecision"| EA
+    EA -->|"ExecutionPlan"| API
+    SA & EA -->|"LLM inference"| GROQ
+    API -->|"JSON response"| FE
+```
+
+---
 
 ## Monorepo Layout
+
 ```
 AruDex/
-├── backend/                  # Express server, pool math, agent orchestration
-├── Agents/                   # FastAPI service exposing /api/strategy and /api/execution
-├── Frontend/dex_frontend/    # React + Vite client with wagmi wallet connection
-├── contracts/, ignition/,    # Hardhat scaffolding for future on-chain deployment/tests
-├── ARCHITECTURE.md           # Mermaid diagram + detailed data flow
-└── hardhat.config.ts         # Mainnet-fork setup (block 21,830,000 by default)
+├── backend/                  # Express API, pool math, Birdeye integration, agent orchestration
+│   ├── index.js              # API server + CORS + agent request forwarding
+│   ├── ammCal.js             # AMM simulation, split optimization, arbitrage detection
+│   ├── pool.js               # On-chain factory/pair reserve readers
+│   ├── birdeye.js            # Birdeye API (discovery, price validation, rate limiting)
+│   ├── config.js             # Environment config exports
+│   ├── factoryAbi.js         # Uniswap V2 Factory ABI
+│   └── pairAbi.js            # Pair contract ABI
+├── Agents/                   # FastAPI service: /api/strategy + /api/execution
+│   ├── app.py                # FastAPI server with CORS
+│   ├── agents/
+│   │   ├── Stratergy_agent.py  # Route selection via structured LLM output
+│   │   └── Execution_agent.py  # Swap plan assembly with tool bindings
+│   └── tools/                # LangChain tool definitions (swap, approve, gas)
+├── Frontend/dex_frontend/    # React + Vite + wagmi client
+│   └── src/
+│       ├── App.tsx            # Wallet connection + app shell
+│       ├── Config.tsx         # wagmi/viem configuration
+│       └── pages/Simulation.tsx  # Swap simulation UI
+├── contracts/                # Solidity contracts (Hardhat scaffolding)
+├── hardhat.config.ts         # Mainnet fork at block 21,830,000
+├── docker-compose.yml        # Full-stack local orchestration
+├── ARCHITECTURE.md           # Detailed system diagram
+└── Readme.md                 # ← You are here
 ```
 
+---
+
 ## End-to-End Flow
-1. **Frontend** (`Simulation.tsx`) lets a user enter an ETH amount and invokes `POST /api/amm` on the backend.
-2. **Backend** (`index.js`) calls `ammCalculation()` to build `poolLogs` + `ammLogs`, ensuring stale pools are flagged and slippage < 2%.
-3. **Strategy Agent** (`Agents/agents/Stratergy_agent.py`) receives those logs and deterministically chooses one of `UNISWAP`, `SUSHISWAP`, `SPLIT`, `MULTI_HOP`, `ARBITRAGE`, or `NONE`.
-4. **Execution Agent** (`Agents/agents/Execution_agent.py`) converts the strategy choice into concrete steps such as `estimate_gas` and `swap_exact_eth_for_tokens`, enforcing path/amount/min-out rules.
-5. **Backend response** merges raw pool data, AMM analytics, the selected route, and the execution checklist, which the frontend renders for operator review.
 
-## Services
-### backend/
-- Tech: Node 20+, Express 5, ethers v6.
-- Key files: `index.js` (API server + agent orchestration), `ammCal.js` (math + Uniswap router integration), `pool.js` (factory/pair readers).
-- Endpoints:
-  - `GET /` health check.
-  - `POST /api/amm` body `{ "oneEth": "20" }` → returns `{ poolLogs, ammLogs, strategy, execution }`.
-- Environment (`backend/.env`):
-  - `PROVIDER_URL` – JSON-RPC source (default `http://127.0.0.1:8545`).
-  - `STRATEGY_AGENT_URL`, `EXECUTION_AGENT_URL` – FastAPI endpoints.
-  - `BIRDEYE_API_KEY` – enables Birdeye discovery + price validation.
-  - `BIRDEYE_CHAIN` – chain header for Birdeye calls (default `ethereum`).
-  - `BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT` – threshold for price-sanity flagging.
-  - `BIRDEYE_MIN_LIQUIDITY_USD`, `BIRDEYE_MIN_VOLUME_24H_USD`, `BIRDEYE_MAX_ABS_PRICE_CHANGE_24H` – token quality filters for discovery.
-  - Optional `PRIVATE_KEY` if you do not want to use the built-in test key.
+1. **Frontend** — User enters an ETH amount → `POST /api/amm` to the backend
+2. **Pool Data** — Backend reads live reserves from Uniswap V2 and SushiSwap contracts via RPC
+3. **AMM Simulation** — Calculates swap outputs for single-hop, multi-hop, and split routes; checks slippage < 2%
+4. **Birdeye Enrichment** — Fetches trending tokens + new listings, filters by quality thresholds, validates pool prices against Birdeye oracle
+5. **Strategy Agent** — Receives `poolLogs` + `ammLogs` → deterministically selects `UNISWAP`, `SUSHISWAP`, `SPLIT`, `MULTI_HOP`, `ARBITRAGE`, or `NONE`
+6. **Execution Agent** — Converts the strategy into concrete swap steps (`estimate_gas` → `swap_exact_eth_for_tokens`) with exact amounts and paths
+7. **Response** — Full JSON with pool data, AMM analytics, Birdeye insights, strategy decision, and execution plan
 
-### Agents/
-- Tech: Python 3.10+, FastAPI, LangChain, `langchain_groq`, pydantic.
-- Strategy Agent selects the optimal venue or declares NONE; Execution Agent returns structured steps referencing tool functions in `Agents/tools/`.
-- Environment (`Agents/.env`):
-  - `GROQ_API_KEY` – used for both agents.
-  - Any additional service keys (e.g., RPC) if you extend the toolset.
-- Run with `uvicorn app:app --host 0.0.0.0 --port 8000`.
+---
 
-### Frontend/dex_frontend/
-- Tech: React 18, Vite, wagmi + viem, @tanstack/react-query.
-- `App.tsx` wires wallet connection and renders the Simulation form.
-- Environment (`Frontend/dex_frontend/.env`):
-  - `VITE_ALCHEMY_RPC_URL` – forwarded to wagmi for wallet reads.
-- Run with `npm run dev` (default on `http://localhost:5173`).
+## Birdeye API Integration
 
-### Hardhat Tooling
-- `hardhat.config.ts` forks Ethereum mainnet at block `21830000` when you run `npx hardhat node`, mirroring liquidity used by the backend/agents.
-- `.env` keys consumed by Hardhat:
-  - `ALCHEMY_RPC_URL` – mainnet archive node.
-  - `SEPOLIA_RPC_URL`, `SEPOLIA_PRIVATE_KEY` – optional for testnet deployments.
+AruDex uses the [Birdeye Data API](https://bds.birdeye.so) for two purposes:
+
+### Token Discovery
+Surfaces high-quality trading candidates by combining:
+- **`/defi/token_trending`** — Top trending tokens by rank
+- **`/defi/v2/tokens/new_listing`** — Recently listed tokens
+- **`/defi/token_overview`** — Detailed token metrics for enrichment
+
+Candidates are filtered through configurable quality gates:
+| Filter | Default | Env Var |
+|--------|---------|---------|
+| Min Liquidity | $250,000 | `BIRDEYE_MIN_LIQUIDITY_USD` |
+| Min 24h Volume | $100,000 | `BIRDEYE_MIN_VOLUME_24H_USD` |
+| Max Price Change | 80% | `BIRDEYE_MAX_ABS_PRICE_CHANGE_24H` |
+
+### Price Validation
+- **`/defi/price`** — Compares pool-derived ETH price against Birdeye oracle price
+- Flags deviations above `BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT` (default 3%) as risk indicators
+- Helps detect stale pools or potential manipulation
+
+### Rate Limiting
+Built-in retry logic with exponential backoff (1s → 2s → 4s) on 429 responses, plus sequential call spacing to stay within free-tier limits.
+
+### Birdeye Endpoints Used
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /defi/token_trending` | Fetch trending tokens |
+| `GET /defi/v2/tokens/new_listing` | Fetch new token listings |
+| `GET /defi/token_overview` | Enrich candidate tokens |
+| `GET /defi/price` | Oracle price for validation |
+
+---
 
 ## Local Setup
-1. **Clone + install dependencies**
-   ```bash
-   npm install            # root hardhat deps (optional)
-   cd backend && npm install && cd -
-   cd Frontend/dex_frontend && npm install && cd -
-   cd Agents && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
-   ```
-2. **Create environment files**
-   ```bash
-   # .env (repo root)
-   ALCHEMY_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/...
-   SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/...
-   SEPOLIA_PRIVATE_KEY=0xabc...
 
-   # backend/.env
-   PROVIDER_URL=http://127.0.0.1:8545
-   STRATEGY_AGENT_URL=http://127.0.0.1:8000/api/strategy
-   EXECUTION_AGENT_URL=http://127.0.0.1:8000/api/execution
-   BIRDEYE_API_KEY=your-birdeye-key
-   BIRDEYE_CHAIN=ethereum
+### Prerequisites
+- Node.js 20+
+- Python 3.10+
+- A free [Alchemy](https://alchemy.com) API key
+- A free [Birdeye](https://bds.birdeye.so) API key
+- A free [Groq](https://console.groq.com) API key
 
-   # Agents/.env
-   GROQ_API_KEY=sk-y0ur-groq-key
+### 1. Clone & install dependencies
 
-   # Frontend/dex_frontend/.env
-   VITE_ALCHEMY_RPC_URL=http://127.0.0.1:8545
-   ```
-3. **Start a forked chain**
-   ```bash
-   npx hardhat node
-   ```
-4. **Run agents**
-   ```bash
-   cd Agents
-   source venv/bin/activate
-   uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-   ```
-5. **Run backend**
-   ```bash
-   cd backend
-   node index.js   # or add "start": "node index.js" to package.json and use npm run start
-   ```
-6. **Run frontend**
-   ```bash
-   cd Frontend/dex_frontend
-   npm run dev
-   ```
-7. Open the UI, enter an ETH amount, submit, and inspect the JSON containing pool logs, selected strategy, and execution plan.
+```bash
+git clone https://github.com/Arunabha-Mukhopadhyay/AruDex.git
+cd AruDex
 
-## Testing & Next Steps
-- `npx hardhat test` runs the placeholder Hardhat suite; extend it with fork tests for new pools.
-- Add backend unit tests (e.g., via vitest) for `binaryBestSplit`, `Multi_Hop`, and slippage guards.
-- Replace the mocked swap/approve tools with on-chain integrations once you are ready to broadcast transactions.
-- Consider wiring wagmi actions directly to the execution plan so advanced users can replay steps without leaving the dashboard.
+npm install                                    # Root Hardhat deps
+cd backend && npm install && cd -
+cd Frontend/dex_frontend && npm install && cd -
+cd Agents && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+```
+
+### 2. Create environment files
+
+```bash
+# .env (repo root — for Hardhat)
+ALCHEMY_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+
+# backend/.env
+PROVIDER_URL=http://127.0.0.1:8545
+STRATEGY_AGENT_URL=http://127.0.0.1:8000/api/strategy
+EXECUTION_AGENT_URL=http://127.0.0.1:8000/api/execution
+BIRDEYE_API_KEY=your-birdeye-key
+BIRDEYE_CHAIN=ethereum
+BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT=3
+BIRDEYE_MIN_LIQUIDITY_USD=250000
+BIRDEYE_MIN_VOLUME_24H_USD=100000
+BIRDEYE_MAX_ABS_PRICE_CHANGE_24H=80
+
+# Agents/.env
+GROQ_API_KEY=your-groq-key
+NODE_BACKEND_URL=http://127.0.0.1:3000
+
+# Frontend/dex_frontend/.env
+VITE_BACKEND_URL=http://localhost:3000
+VITE_ALCHEMY_RPC_URL=http://127.0.0.1:8545
+```
+
+### 3. Start services
+
+```bash
+# Terminal 1 — Hardhat (forked mainnet)
+npx hardhat node
+
+# Terminal 2 — Agents
+cd Agents && source venv/bin/activate
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 3 — Backend
+cd backend && node index.js
+
+# Terminal 4 — Frontend
+cd Frontend/dex_frontend && npm run dev
+```
+
+### 4. Test
+Open `http://localhost:5173`, enter an ETH amount, click **Simulate**.
+
+---
+
+## Deployment (Render)
+
+AruDex runs on Render as 3 services:
+
+| Service | Type | URL |
+|---------|------|-----|
+| Frontend | Static Site | [arudex.onrender.com](https://arudex.onrender.com) |
+| Backend | Web Service (Node.js) | [arudex-backend.onrender.com](https://arudex-backend.onrender.com) |
+| Agents | Web Service (Python) | [arudex-agents.onrender.com](https://arudex-agents.onrender.com) |
+
+In production, the backend connects to **Alchemy mainnet RPC** instead of Hardhat. Pool reserves and `getAmountsOut` are read-only calls that work directly on mainnet. Gas estimation gracefully falls back to standard values (150k gas) since the test wallet has no real ETH.
+
+### Docker Compose (Alternative)
+
+For full-stack local orchestration including Hardhat:
+
+```bash
+docker-compose up --build
+```
+
+This spins up all 4 services (Hardhat, Backend, Agents, Frontend) with proper networking.
+
+---
+
+## Key Algorithms
+
+| Component | Algorithm | File |
+|-----------|-----------|------|
+| `simulateSwap` | Uniswap V2 constant product formula with 0.3% fee | `ammCal.js` |
+| `binaryBestSplit` | Binary search over split ratio to maximize total USDC output | `ammCal.js` |
+| `Multi_Hop` | Sequential AMM simulation across 2 pools (WETH→DAI→USDC) | `ammCal.js` |
+| `Arbitrage_opp` | Cross-DEX circular arbitrage detection (Uni→Sushi, Sushi→Uni) | `ammCal.js` |
+| `candidateScore` | Weighted scoring: 60% volume + 40% liquidity + momentum bonus | `birdeye.js` |
+| `passesDiscoveryFilters` | Multi-threshold quality gate for token candidates | `birdeye.js` |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, Vite, TypeScript, wagmi, viem, TanStack Query |
+| Backend | Node.js, Express 5, ethers.js v6 |
+| Agents | Python 3.10, FastAPI, LangChain, LangGraph, Groq (Llama 3.3 70B) |
+| Blockchain | Hardhat v3 (mainnet fork), Uniswap V2, SushiSwap V2 |
+| Data | Birdeye API (token discovery + price validation) |
+| Deployment | Render (static site + 2 web services) |
+
+---
+
+## License
+
+MIT
