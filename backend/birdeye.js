@@ -39,28 +39,46 @@ const createBirdeyeUrl = (path, query = {}) => {
   return url.toString();
 };
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const BIRDEYE_MAX_RETRIES = 3;
+const BIRDEYE_RETRY_BASE_MS = 1000; // 1s, 2s, 4s backoff
+
 const birdeyeGet = async (path, query = {}) => {
   if (!isBirdeyeConfigured()) {
     throw new Error('BIRDEYE_API_KEY is missing');
   }
 
-  const response = await fetch(createBirdeyeUrl(path, query), {
-    method: 'GET',
-    headers: birdeyeHeaders()
-  });
+  const url = createBirdeyeUrl(path, query);
 
-  if (!response.ok) {
-    const responseBody = await response.text();
-    throw new Error(`Birdeye request failed (${response.status}): ${responseBody}`);
+  for (let attempt = 0; attempt <= BIRDEYE_MAX_RETRIES; attempt++) {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: birdeyeHeaders()
+    });
+
+    if (response.status === 429) {
+      if (attempt < BIRDEYE_MAX_RETRIES) {
+        const backoff = BIRDEYE_RETRY_BASE_MS * Math.pow(2, attempt);
+        console.log(`Birdeye 429 on ${path}, retrying in ${backoff}ms (attempt ${attempt + 1}/${BIRDEYE_MAX_RETRIES})`);
+        await delay(backoff);
+        continue;
+      }
+    }
+
+    if (!response.ok) {
+      const responseBody = await response.text();
+      throw new Error(`Birdeye request failed (${response.status}): ${responseBody}`);
+    }
+
+    const payload = await response.json();
+
+    if (payload?.success === false) {
+      throw new Error(payload?.message ?? 'Birdeye returned success=false');
+    }
+
+    return payload?.data ?? null;
   }
-
-  const payload = await response.json();
-
-  if (payload?.success === false) {
-    throw new Error(payload?.message ?? 'Birdeye returned success=false');
-  }
-
-  return payload?.data ?? null;
 };
 
 const normalizeTrendingToken = (token) => ({
@@ -199,10 +217,10 @@ export const buildBirdeyeTokenDiscovery = async () => {
   }
 
   try {
-    const [trendingTokens, newListingTokens] = await Promise.all([
-      getTrendingTokens(),
-      getNewListings()
-    ]);
+    // Sequential calls to respect rate limits
+    const trendingTokens = await getTrendingTokens();
+    await delay(350);
+    const newListingTokens = await getNewListings();
 
     const uniqueCandidates = new Map();
 
@@ -232,19 +250,20 @@ export const buildBirdeyeTokenDiscovery = async () => {
 
     const candidatesToEnrich = sortedCandidates.slice(0, BIRDEYE_DISCOVERY_ENRICH_LIMIT);
 
-    const enrichedCandidates = await Promise.all(
-      candidatesToEnrich.map(async (token) => {
-        try {
-          const overview = await getTokenOverview(token.address);
-          return mergeWithOverview(token, overview);
-        } catch (error) {
-          return {
-            ...token,
-            overviewError: error.message
-          };
-        }
-      })
-    );
+    // Enrich sequentially with spacing to avoid 429s
+    const enrichedCandidates = [];
+    for (const token of candidatesToEnrich) {
+      try {
+        await delay(350);
+        const overview = await getTokenOverview(token.address);
+        enrichedCandidates.push(mergeWithOverview(token, overview));
+      } catch (error) {
+        enrichedCandidates.push({
+          ...token,
+          overviewError: error.message
+        });
+      }
+    }
 
     const selectedTokens = enrichedCandidates
       .filter(passesDiscoveryFilters)
