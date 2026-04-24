@@ -89,13 +89,22 @@ app.get('/', (req, res) => {
   res.send('Server is working');
 });
 
+
 app.post('/api/amm', async (req, res) => {
   console.log("HIT /api/amm", req.body);
 
   try {
     const { poolLogs, ammLogs } = await ammCalculation(req);
-    const strategy = await requestStrategy(poolLogs, ammLogs);
-    const execution = await requestExecution(strategy, poolLogs, ammLogs); 
+    let strategy = null;
+    let execution = null;
+    try{
+      strategy = await requestStrategy(poolLogs, ammLogs);
+      execution = await requestExecution(strategy, poolLogs, ammLogs); 
+    } catch (agentError) {
+      console.warn("Agent unavailable:", agentError.message);
+      strategy = { best_route: "UNAVAILABLE", reason: "Agent rate limited or offline" };
+      execution = { action: "UNAVAILABLE", reason: "Agent rate limited or offline" };
+    }
 
     const responsePayload = {
       ok: true,
