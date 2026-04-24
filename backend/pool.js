@@ -17,8 +17,8 @@ const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
-async function poolReserves(FactoryAddress, Token0, Token1){
-  const factory = new ethers.Contract(FactoryAddress,factoryAbi,provider);
+async function poolReserves(FactoryAddress, Token0, Token1, currentBlock) {
+  const factory = new ethers.Contract(FactoryAddress, factoryAbi, provider);
 
   const pairAddress = await factory.getPair(Token0, Token1);
   console.log("Pair:", pairAddress);
@@ -37,7 +37,7 @@ async function poolReserves(FactoryAddress, Token0, Token1){
 
   const getDecimals = (token) => {
     if (token === USDC) return 6;
-    return 18; 
+    return 18;
   };
 
   // console.log(
@@ -56,10 +56,10 @@ async function poolReserves(FactoryAddress, Token0, Token1){
 
   // console.log("Timestamp:", blockTimestampLast.toString());
 
-  const dex = FactoryAddress === factory_address ? 'uniswap' : 'sushiswap'  
+  const dex = FactoryAddress === factory_address ? 'uniswap' : 'sushiswap'
 
   //stale logic:
-  const currentBlock = await provider.getBlock("latest");
+  // currentBlock is passed in from getAll_POOL_Logs to avoid 6 separate getBlock calls
   const now = currentBlock.timestamp;
   const timestamp = Number(blockTimestampLast);
 
@@ -79,7 +79,7 @@ async function poolReserves(FactoryAddress, Token0, Token1){
     reserve1: reserve1,
     token0,
     token1,
-    blockTimestampLast: blockTimestampLast.toString(), 
+    blockTimestampLast: blockTimestampLast.toString(),
 
     dex,
     isStale
@@ -124,14 +124,26 @@ async function poolReserves(FactoryAddress, Token0, Token1){
 
 
 export async function getAll_POOL_Logs() {
-  return {
-    uniswapEthUsdc: await poolReserves(factory_address, WETH, USDC),
-    sushiswapEthUsdc: await poolReserves(SushiSwap_FactoryAddress, WETH, USDC),
-    wethDai: await poolReserves(factory_address, WETH, DAI),
-    sushiWethDai: await poolReserves(SushiSwap_FactoryAddress, WETH, DAI),
-    daiUsdc: await poolReserves(factory_address, DAI, USDC),
-    sushiDaiUsdc: await poolReserves(SushiSwap_FactoryAddress, DAI, USDC),
-  };
+  // fetch latest block once and share across all 6 poolReserves calls
+  const currentBlock = await provider.getBlock("latest");
+
+  const [
+    uniswapEthUsdc,
+    sushiswapEthUsdc,
+    wethDai,
+    sushiWethDai,
+    daiUsdc,
+    sushiDaiUsdc
+  ] = await Promise.all([
+    poolReserves(factory_address, WETH, USDC, currentBlock),
+    poolReserves(SushiSwap_FactoryAddress, WETH, USDC, currentBlock),
+    poolReserves(factory_address, WETH, DAI, currentBlock),
+    poolReserves(SushiSwap_FactoryAddress, WETH, DAI, currentBlock),
+    poolReserves(factory_address, DAI, USDC, currentBlock),
+    poolReserves(SushiSwap_FactoryAddress, DAI, USDC, currentBlock),
+  ]);
+
+  return { uniswapEthUsdc, sushiswapEthUsdc, wethDai, sushiWethDai, daiUsdc, sushiDaiUsdc };
 }
 // getAll_POOL_Logs().then((data)=>{
 //   console.log(
@@ -141,11 +153,6 @@ export async function getAll_POOL_Logs() {
 //     )
 //   );
 // })
-
-
-
-
-
 
 
 // for testting purpose and understanding the pool reserves logs:
@@ -167,7 +174,7 @@ export async function readReserves() {
   const token1 = await pair.token1();
   //console.log("Token1_uniswap:", token1);
 
-  return{
+  return {
     reserve0,
     reserve1,
     token0,
@@ -178,7 +185,7 @@ export async function readReserves() {
 //readReserves();
 
 
-export async function poolSushiSwap(){
+export async function poolSushiSwap() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const factory = new ethers.Contract(SushiSwap_FactoryAddress, factoryAbi, provider);
 
@@ -196,7 +203,7 @@ export async function poolSushiSwap(){
   const token1 = await pair.token1();
   //console.log("Token1_sushi:", token1);
 
-  return{
+  return {
     reserve0,
     reserve1,
     token0,
@@ -217,8 +224,8 @@ export async function DAI_USDC_pool() {
 
   const pair = new ethers.Contract(pairAddress, pairAbi, provider);
   const [reserve0, reserve1, blockTimestampLast] = await pair.getReserves();
-  console.log("Reserve0_DAI->USDC:", ethers.formatUnits(reserve0,18));
-  console.log("Reserve1_DAI->USDC:", ethers.formatUnits(reserve1,6));
+  console.log("Reserve0_DAI->USDC:", ethers.formatUnits(reserve0, 18));
+  console.log("Reserve1_DAI->USDC:", ethers.formatUnits(reserve1, 6));
   console.log("Timestamp_DAI->USDC:", blockTimestampLast.toString());
 
   const token0 = await pair.token0();
@@ -237,7 +244,7 @@ export async function DAI_USDC_pool() {
 //DAI_USDC_pool()
 
 
-export async function Weth_DAI_pool(){
+export async function Weth_DAI_pool() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   //console.log(factory_address)
   const factory = new ethers.Contract(factory_address, factoryAbi, provider);
@@ -247,8 +254,8 @@ export async function Weth_DAI_pool(){
 
   const pair = new ethers.Contract(pairAddress, pairAbi, provider);
   const [reserve0, reserve1, blockTimestampLast] = await pair.getReserves();
-  console.log("Reserve0_weth->dai:", ethers.formatUnits(reserve0,18));
-  console.log("Reserve1_weth->dai:", ethers.formatUnits(reserve1,18));
+  console.log("Reserve0_weth->dai:", ethers.formatUnits(reserve0, 18));
+  console.log("Reserve1_weth->dai:", ethers.formatUnits(reserve1, 18));
   console.log("Timestamp_weth->dai:", blockTimestampLast.toString());
 
   const token0 = await pair.token0();
@@ -256,7 +263,7 @@ export async function Weth_DAI_pool(){
   const token1 = await pair.token1();
   console.log("Token1_weth->dai:", token1);
 
-  return{
+  return {
     reserve0,
     reserve1,
     token0,

@@ -394,7 +394,7 @@ export const ammCalculation = async(req) => {
   const Slippage_Uni = ((executionPrice_Uni - spotPrice_Uni) / spotPrice_Uni) * 100; 
 
   if (Math.abs(Slippage_Uni) > 2) {
-    throw new Error("Slippage too high");
+    console.warn(`High Uniswap slippage: ${Slippage_Uni.toFixed(3)}% — proceeding with warning`);
   }
 
 
@@ -446,46 +446,94 @@ export const ammCalculation = async(req) => {
 
   
 
-  if(!sushi.isStale){
+  // if(!sushi.isStale){
+  //   const Sushi_reserve0 = Number(ethers.formatUnits(sushi.reserve0, 6));
+  //   const Sushi_reserve1 = Number(ethers.formatUnits(sushi.reserve1, 18));
+
+  //   spotPrice_Sushi = Sushi_reserve0 / Sushi_reserve1;
+  //   executionPrice_Sushi = Number(ethers.formatUnits(simulateSwap(oneEth, sushiReserve1, sushiReserve0), 6)) / Number(ethers.formatEther(oneEth));
+  //   Slippage_Sushi = ((executionPrice_Sushi - spotPrice_Sushi) / spotPrice_Sushi) * 100;
+
+
+  //   if (Math.abs(Slippage_Sushi) > 2) {
+  //     console.warn(`High SushiSwap slippage: ${Slippage_Sushi.toFixed(3)}% — skipping SushiSwap`);
+  //     // treat it as stale so all downstream sushi calculations are skipped
+  //     sushi.isStale = true;
+  //   }
+
+  //   const isWethToken0_sushi = sushi.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
+  //   const path_sushi = isWethToken0_sushi ? [sushi.token0, sushi.token1] : [sushi.token1, sushi.token0];
+  //   const router_sushi = new ethers.Contract(SUSHISWAP_ADDRESS_ROUTER, routerAbi, signer)
+  //   const amounts_SUSHI = await router_sushi.getAmountsOut(oneEth, path_sushi);
+  //   //const expectedOutOptimized = simulateSwap(optimizedInputEth,uniReserve1,uniReserve0);
+  //   const expectedOut_sushi = amounts_SUSHI[amounts_SUSHI.length - 1];
+  //   const minOut_sushi = expectedOut_sushi * 99n / 100n;
+
+  //   try {
+  //     gasEstimation_sushi = await estimateSushiSwapGas(
+  //       oneEth,
+  //       minOut_sushi,
+  //       path_sushi,
+  //       signer.address
+  //     );
+  //   } catch (err) {
+  //     console.log("SushiSwap gas estimation failed, using fallback:", err.message);
+  //     gasEstimation_sushi = 150000n;
+  //   }
+
+  //   const feeData_sushi = await provider.getFeeData();
+  //   const gasPrice_sushi = feeData_sushi.gasPrice;
+  //   const estimatedGasCost_sushi = gasEstimation_sushi * gasPrice_sushi;
+  //   const gasCostEth_sushi = ethers.formatEther(estimatedGasCost_sushi);
+  //   gas_cost_usdc_sushi = Number(gasCostEth_sushi) * executionPrice_Sushi;
+  //   effectiveOutput_sushi = Number(ethers.formatUnits(AmountOutSushi, 6)) - gas_cost_usdc_sushi;
+  // } else{
+  //   console.log("Skipping SushiSwap calculations as it is stale pool");
+  // }
+
+  if (!sushi.isStale) {
     const Sushi_reserve0 = Number(ethers.formatUnits(sushi.reserve0, 6));
     const Sushi_reserve1 = Number(ethers.formatUnits(sushi.reserve1, 18));
 
     spotPrice_Sushi = Sushi_reserve0 / Sushi_reserve1;
-    executionPrice_Sushi = Number(ethers.formatUnits(simulateSwap(oneEth, sushiReserve1, sushiReserve0), 6)) / Number(ethers.formatEther(oneEth));
+    executionPrice_Sushi = Number(ethers.formatUnits(
+      simulateSwap(oneEth, sushiReserve1, sushiReserve0), 6)
+    ) / Number(ethers.formatEther(oneEth));
     Slippage_Sushi = ((executionPrice_Sushi - spotPrice_Sushi) / spotPrice_Sushi) * 100;
 
-
     if (Math.abs(Slippage_Sushi) > 2) {
-      throw new Error("Slippage too high for SushiSwap");
+      console.warn(`High SushiSwap slippage: ${Slippage_Sushi.toFixed(3)}% — skipping SushiSwap`);
+      sushi.isStale = true;
+      spotPrice_Sushi = 0;
+      executionPrice_Sushi = 0;
+      Slippage_Sushi = 0;
+    } else {
+      const isWethToken0_sushi = sushi.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
+      const path_sushi = isWethToken0_sushi
+        ? [sushi.token0, sushi.token1]
+        : [sushi.token1, sushi.token0];
+      const router_sushi = new ethers.Contract(SUSHISWAP_ADDRESS_ROUTER, routerAbi, signer);
+      const amounts_SUSHI = await router_sushi.getAmountsOut(oneEth, path_sushi);
+      const expectedOut_sushi = amounts_SUSHI[amounts_SUSHI.length - 1];
+      const minOut_sushi = expectedOut_sushi * 99n / 100n;
+
+      try {
+        gasEstimation_sushi = await estimateSushiSwapGas(
+          oneEth, minOut_sushi, path_sushi, signer.address
+        );
+      } catch (err) {
+        console.log("SushiSwap gas estimation failed, using fallback:", err.message);
+        gasEstimation_sushi = 150000n;
+      }
+
+      const feeData_sushi = await provider.getFeeData();
+      const gasPrice_sushi = feeData_sushi.gasPrice;
+      const estimatedGasCost_sushi = gasEstimation_sushi * gasPrice_sushi;
+      const gasCostEth_sushi = ethers.formatEther(estimatedGasCost_sushi);
+      gas_cost_usdc_sushi = Number(gasCostEth_sushi) * executionPrice_Sushi;
+      effectiveOutput_sushi = Number(ethers.formatUnits(AmountOutSushi, 6)) - gas_cost_usdc_sushi;
     }
-
-    const isWethToken0_sushi = sushi.token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
-    const path_sushi = isWethToken0_sushi ? [sushi.token0, sushi.token1] : [sushi.token1, sushi.token0];
-    const router_sushi = new ethers.Contract(SUSHISWAP_ADDRESS_ROUTER, routerAbi, signer)
-    const amounts_SUSHI = await router_sushi.getAmountsOut(oneEth, path_sushi);
-    //const expectedOutOptimized = simulateSwap(optimizedInputEth,uniReserve1,uniReserve0);
-    const expectedOut_sushi = amounts_SUSHI[amounts_SUSHI.length - 1];
-    const minOut_sushi = expectedOut_sushi * 99n / 100n;
-
-    try {
-      gasEstimation_sushi = await estimateSushiSwapGas(
-        oneEth,
-        minOut_sushi,
-        path_sushi,
-        signer.address
-      );
-    } catch (err) {
-      console.log("SushiSwap gas estimation failed, using fallback:", err.message);
-      gasEstimation_sushi = 150000n;
-    }
-
-    const feeData_sushi = await provider.getFeeData();
-    const gasPrice_sushi = feeData_sushi.gasPrice;
-    const estimatedGasCost_sushi = gasEstimation_sushi * gasPrice_sushi;
-    const gasCostEth_sushi = ethers.formatEther(estimatedGasCost_sushi);
-    gas_cost_usdc_sushi = Number(gasCostEth_sushi) * executionPrice_Sushi;
-    effectiveOutput_sushi = Number(ethers.formatUnits(AmountOutSushi, 6)) - gas_cost_usdc_sushi;
-  } else{
+  } else {
     console.log("Skipping SushiSwap calculations as it is stale pool");
   }
 
@@ -685,23 +733,23 @@ export const ammCalculation = async(req) => {
 }
 
 
-const mockReq = {
-  body: {
-    oneEth: "20"
-  }
-};
+// const mockReq = {
+//   body: {
+//     oneEth: "20"
+//   }
+// };
 
-ammCalculation(mockReq)
-  .then((res) => {
-    console.log(
-      JSON.stringify(res, (key, value) =>
-        typeof value === "bigint" ? value.toString() : value,
-        2)
-    );
-  })
-  .catch((err) => {
-    console.error("Error:", err);
-  });
+// ammCalculation(mockReq)
+//   .then((res) => {
+//     console.log(
+//       JSON.stringify(res, (key, value) =>
+//         typeof value === "bigint" ? value.toString() : value,
+//         2)
+//     );
+//   })
+//   .catch((err) => {
+//     console.error("Error:", err);
+//   });
 
 
 
