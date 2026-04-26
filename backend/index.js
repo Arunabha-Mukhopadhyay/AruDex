@@ -3,7 +3,7 @@ import cors from 'cors'
 
 import { STRATEGY_AGENT_URL } from './config.js'
 import { EXECUTION_AGENT_URL } from './config.js'
-import { ammCalculation , executeSwap, estimateSwapGas } from './ammCal.js'
+import { ammCalculation, executeSwap, estimateSwapGas } from './ammCal.js'
 
 const app = express()
 
@@ -57,9 +57,9 @@ const fetchAgentWithRetry = async (url, payload, retries = 3, backoffMs = 3000) 
       const errorText = await response.text();
       // Retry on 5xx errors (e.g. Render 502/503 cold starts, 500 from agent) and 429 rate limit
       const isRetryable = response.status >= 500 || response.status === 429;
-      
+
       console.warn(`Agent at ${url} responded with ${response.status} (Attempt ${attempt}/${retries}): ${errorText}`);
-      
+
       if (!isRetryable || attempt === retries) {
         throw new Error(`Agent responded with ${response.status}: ${errorText}`);
       }
@@ -69,7 +69,7 @@ const fetchAgentWithRetry = async (url, payload, retries = 3, backoffMs = 3000) 
         throw err;
       }
     }
-    
+
     // Wait before retrying (exponential backoff)
     await new Promise(res => setTimeout(res, backoffMs * attempt));
   }
@@ -98,7 +98,7 @@ app.get('/', (req, res) => {
 app.get('/api/health', (req, res) => {
   // Fire and forget ping to agents to wake them up on Render
   const agentHealthUrl = STRATEGY_AGENT_URL.replace('/api/strategy', '/health');
-  fetch(agentHealthUrl).catch(() => {});
+  fetch(agentHealthUrl).catch(() => { });
   res.json({ status: 'ok', message: 'Backend and Agents are waking up' });
 });
 
@@ -110,13 +110,13 @@ app.post('/api/amm', async (req, res) => {
     const { poolLogs, ammLogs } = await ammCalculation(req);
     let strategy = null;
     let execution = null;
-    try{
+    try {
       strategy = await requestStrategy(poolLogs, ammLogs);
-      execution = await requestExecution(strategy, poolLogs, ammLogs); 
+      execution = await requestExecution(strategy, poolLogs, ammLogs);
     } catch (agentError) {
       console.warn("Agent unavailable:", agentError.message);
-      strategy = { best_route: "UNAVAILABLE", reason: "Agent rate limited or offline" };
-      execution = { action: "UNAVAILABLE", reason: "Agent rate limited or offline" };
+      strategy = { best_route: "UNAVAILABLE", reason: agentError.message };
+      execution = { action: "UNAVAILABLE", reason: agentError.message };
     }
 
     const responsePayload = {

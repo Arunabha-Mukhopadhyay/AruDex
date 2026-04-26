@@ -8,9 +8,8 @@ function Simulation() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Ping backend to wake it up (and agents) from Render's free tier sleep
     const baseUrl = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3000";
-    axios.get(`${baseUrl}/api/health`).catch(() => {});
+    axios.get(`${baseUrl}/api/health`).catch(() => { });
   }, []);
 
   const fetchData = async () => {
