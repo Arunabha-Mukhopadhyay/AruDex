@@ -174,9 +174,18 @@ const getTokenOverview = async (address) => {
   return birdeyeGet('/defi/token_overview', { address });
 };
 
+let priceCache = new Map();
+const PRICE_CACHE_TTL = 60 * 1000; // 1 minute
+
 export const getTokenPriceFromBirdeye = async (address) => {
   if (!address) {
     return null;
+  }
+
+  const now = Date.now();
+  const cached = priceCache.get(address);
+  if (cached && (now - cached.time < PRICE_CACHE_TTL)) {
+    return cached.data;
   }
 
   const data = await birdeyeGet('/defi/price', {
@@ -189,7 +198,7 @@ export const getTokenPriceFromBirdeye = async (address) => {
     return null;
   }
 
-  return {
+  const result = {
     address,
     value,
     updateUnixTime: data?.updateUnixTime ?? null,
@@ -197,7 +206,14 @@ export const getTokenPriceFromBirdeye = async (address) => {
     liquidityUsd: toNumberOrNull(data?.liquidity),
     priceChange24h: toNumberOrNull(data?.priceChange24h)
   };
+
+  priceCache.set(address, { data: result, time: now });
+  return result;
 };
+
+let cachedDiscovery = null;
+let cachedDiscoveryTime = 0;
+const DISCOVERY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const buildBirdeyeTokenDiscovery = async () => {
   if (!isBirdeyeConfigured()) {
@@ -214,6 +230,11 @@ export const buildBirdeyeTokenDiscovery = async () => {
       selectedTokens: [],
       sampledTokens: []
     };
+  }
+
+  const now = Date.now();
+  if (cachedDiscovery && (now - cachedDiscoveryTime < DISCOVERY_CACHE_TTL)) {
+    return cachedDiscovery;
   }
 
   try {
@@ -270,7 +291,7 @@ export const buildBirdeyeTokenDiscovery = async () => {
       .sort((a, b) => candidateScore(b) - candidateScore(a))
       .slice(0, BIRDEYE_DISCOVERY_SELECTION_LIMIT);
 
-    return {
+    const finalResult = {
       enabled: true,
       status: 'ok',
       chain: BIRDEYE_CHAIN,
@@ -290,6 +311,11 @@ export const buildBirdeyeTokenDiscovery = async () => {
       selectedTokens,
       sampledTokens: enrichedCandidates.slice(0, 5)
     };
+
+    cachedDiscovery = finalResult;
+    cachedDiscoveryTime = Date.now();
+
+    return finalResult;
   } catch (error) {
     return {
       enabled: true,
