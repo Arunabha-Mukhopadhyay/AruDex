@@ -36,57 +36,70 @@ const safeJson = (obj) =>
   );
 
 
-const requestStrategy = async (poolLogs, ammLogs) => {
-
+const fetchAgentWithRetry = async (url, payload, retries = 3, backoffMs = 3000) => {
   const safeStringify = (obj) =>
     JSON.stringify(obj, (_, value) =>
       typeof value === "bigint" ? value.toString() : value
     );
 
-  const response = await fetch(STRATEGY_AGENT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: safeStringify({
-      pool_logs: poolLogs,
-      amm_logs: ammLogs
-    })
-  });
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: safeStringify(payload)
+      });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Strategy agent responded with ${response.status}: ${errorText}`);
+      if (response.ok) {
+        return await response.json();
+      }
+
+      const errorText = await response.text();
+      // Retry on 5xx errors (e.g. Render 502/503 cold starts, 500 from agent) and 429 rate limit
+      const isRetryable = response.status >= 500 || response.status === 429;
+      
+      console.warn(`Agent at ${url} responded with ${response.status} (Attempt ${attempt}/${retries}): ${errorText}`);
+      
+      if (!isRetryable || attempt === retries) {
+        throw new Error(`Agent responded with ${response.status}: ${errorText}`);
+      }
+    } catch (err) {
+      console.warn(`Fetch to ${url} failed (Attempt ${attempt}/${retries}): ${err.message}`);
+      if (attempt === retries) {
+        throw err;
+      }
+    }
+    
+    // Wait before retrying (exponential backoff)
+    await new Promise(res => setTimeout(res, backoffMs * attempt));
   }
+};
 
-  return response.json();
+const requestStrategy = async (poolLogs, ammLogs) => {
+  return fetchAgentWithRetry(STRATEGY_AGENT_URL, {
+    pool_logs: poolLogs,
+    amm_logs: ammLogs
+  }, 3, 3000);
 };
 
 
 const requestExecution = async (strategyOutput, poolLogs, ammLogs) => {
-  const safeStringify = (obj) =>
-    JSON.stringify(obj, (_, value) =>
-      typeof value === "bigint" ? value.toString() : value
-    );
-
-  const response = await fetch(EXECUTION_AGENT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: safeStringify({
-      strategy_output: strategyOutput,
-      pool_logs: poolLogs,
-      amm_logs: ammLogs
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Execution agent responded with ${response.status}: ${errorText}`);
-  }
-
-  return response.json();
+  return fetchAgentWithRetry(EXECUTION_AGENT_URL, {
+    strategy_output: strategyOutput,
+    pool_logs: poolLogs,
+    amm_logs: ammLogs
+  }, 3, 3000);
 };
 
 app.get('/', (req, res) => {
   res.send('Server is working');
+});
+
+app.get('/api/health', (req, res) => {
+  // Fire and forget ping to agents to wake them up on Render
+  const agentHealthUrl = STRATEGY_AGENT_URL.replace('/api/strategy', '/health');
+  fetch(agentHealthUrl).catch(() => {});
+  res.json({ status: 'ok', message: 'Backend and Agents are waking up' });
 });
 
 
