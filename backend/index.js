@@ -75,19 +75,33 @@ const fetchAgentWithRetry = async (url, payload, retries = 3, backoffMs = 3000) 
   }
 };
 
+const trimPayload = (poolLogs, ammLogs) => {
+  // Deep copy so we don't mutate the frontend response
+  const trimmedPoolLogs = { ...poolLogs };
+  const trimmedAmmLogs = { ...ammLogs };
+  
+  // The agents do not need 2,500 tokens of trending tokens metadata to decide a swap route
+  if (trimmedPoolLogs.birdeyeDiscovery) delete trimmedPoolLogs.birdeyeDiscovery;
+  if (trimmedAmmLogs.birdeye?.discovery) delete trimmedAmmLogs.birdeye.discovery;
+
+  return { trimmedPoolLogs, trimmedAmmLogs };
+};
+
 const requestStrategy = async (poolLogs, ammLogs) => {
+  const { trimmedPoolLogs, trimmedAmmLogs } = trimPayload(poolLogs, ammLogs);
   return fetchAgentWithRetry(STRATEGY_AGENT_URL, {
-    pool_logs: poolLogs,
-    amm_logs: ammLogs
+    pool_logs: trimmedPoolLogs,
+    amm_logs: trimmedAmmLogs
   }, 3, 3000);
 };
 
 
 const requestExecution = async (strategyOutput, poolLogs, ammLogs) => {
+  const { trimmedPoolLogs, trimmedAmmLogs } = trimPayload(poolLogs, ammLogs);
   return fetchAgentWithRetry(EXECUTION_AGENT_URL, {
     strategy_output: strategyOutput,
-    pool_logs: poolLogs,
-    amm_logs: ammLogs
+    pool_logs: trimmedPoolLogs,
+    amm_logs: trimmedAmmLogs
   }, 3, 3000);
 };
 
