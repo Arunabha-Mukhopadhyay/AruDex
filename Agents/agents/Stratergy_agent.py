@@ -9,8 +9,9 @@ import os
 
 load_dotenv()
 
+# Change from llama-3.3-70b-versatile to:
 model = ChatGroq(
-    model="llama-3.3-70b-versatile",
+    model="llama-3.1-8b-instant",
     temperature=0.1,
     api_key=os.getenv("GROQ_API_KEY"),
     max_retries=5

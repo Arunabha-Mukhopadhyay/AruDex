@@ -13,7 +13,10 @@ const SushiSwap_FactoryAddress = "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"
 
 const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+// Replaced DAI with USDT: WETH/USDT and USDT/USDC pairs on Uniswap V2 & SushiSwap V2
+// are traded every few minutes (vs DAI which moved to Curve/V3, making V2 pools always stale).
+// This keeps pools fresh, enabling live multi-hop (WETH→USDT→USDC) and split routing.
+const USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
@@ -130,20 +133,20 @@ export async function getAll_POOL_Logs() {
   const [
     uniswapEthUsdc,
     sushiswapEthUsdc,
-    wethDai,
-    sushiWethDai,
-    daiUsdc,
-    sushiDaiUsdc
+    wethUsdt,
+    sushiWethUsdt,
+    usdtUsdc,
+    sushiUsdtUsdc
   ] = await Promise.all([
     poolReserves(factory_address, WETH, USDC, currentBlock),
     poolReserves(SushiSwap_FactoryAddress, WETH, USDC, currentBlock),
-    poolReserves(factory_address, WETH, DAI, currentBlock),
-    poolReserves(SushiSwap_FactoryAddress, WETH, DAI, currentBlock),
-    poolReserves(factory_address, DAI, USDC, currentBlock),
-    poolReserves(SushiSwap_FactoryAddress, DAI, USDC, currentBlock),
+    poolReserves(factory_address, WETH, USDT, currentBlock),
+    poolReserves(SushiSwap_FactoryAddress, WETH, USDT, currentBlock),
+    poolReserves(factory_address, USDT, USDC, currentBlock),
+    poolReserves(SushiSwap_FactoryAddress, USDT, USDC, currentBlock),
   ]);
 
-  return { uniswapEthUsdc, sushiswapEthUsdc, wethDai, sushiWethDai, daiUsdc, sushiDaiUsdc };
+  return { uniswapEthUsdc, sushiswapEthUsdc, wethUsdt, sushiWethUsdt, usdtUsdc, sushiUsdtUsdc };
 }
 // getAll_POOL_Logs().then((data)=>{
 //   console.log(

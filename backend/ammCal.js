@@ -320,8 +320,8 @@ export const ammCalculation = async(req) => {
 
   const uni = poolLogs.uniswapEthUsdc
   const sushi = poolLogs.sushiswapEthUsdc
-  const dai = poolLogs.wethDai
-  const dai_usdc = poolLogs.daiUsdc
+  const usdt = poolLogs.wethUsdt
+  const usdt_usdc = poolLogs.usdtUsdc
 
   const uniReserve0 = BigInt(uni.reserve0);
   const uniReserve1 = BigInt(uni.reserve1);
@@ -329,21 +329,21 @@ export const ammCalculation = async(req) => {
   const sushiReserve0 = BigInt(sushi.reserve0);
   const sushiReserve1 = BigInt(sushi.reserve1);
 
-  const daiReserve0 = BigInt(dai.reserve0);
-  const daiReserve1 = BigInt(dai.reserve1);
+  const usdtReserve0 = BigInt(usdt.reserve0);
+  const usdtReserve1 = BigInt(usdt.reserve1);
 
-  const daiUsdcReserve0 = BigInt(dai_usdc.reserve0);
-  const daiUsdcReserve1 = BigInt(dai_usdc.reserve1);
+  const usdtUsdcReserve0 = BigInt(usdt_usdc.reserve0);
+  const usdtUsdcReserve1 = BigInt(usdt_usdc.reserve1);
 
 
   // const amountOut_MultiHop = await Multi_Hop(oneEth, dai, dai_usdc);
   let amountOut_MultiHop = 0n;
 
-  if (!dai.isStale && !dai_usdc.isStale) {
+  if (!usdt.isStale && !usdt_usdc.isStale) {
     amountOut_MultiHop = await Multi_Hop(
       oneEth,
-      { reserve0: daiReserve0, reserve1: daiReserve1 },
-      { reserve0: daiUsdcReserve0, reserve1: daiUsdcReserve1 }
+      { reserve0: usdtReserve0, reserve1: usdtReserve1 },
+      { reserve0: usdtUsdcReserve0, reserve1: usdtUsdcReserve1 }
     );
   } else {
     console.log("Skipping multi-hop: stale pool detected");
