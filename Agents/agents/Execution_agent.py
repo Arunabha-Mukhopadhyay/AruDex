@@ -13,7 +13,7 @@ from tools.Approve_tool import approve_token, estimate_gas
 load_dotenv()
 
 model = ChatGoogleGenerativeAI(
-    model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+    model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
     temperature=0.2,
     google_api_key=os.getenv("GEMINI_API_KEY"),
     max_retries=5
