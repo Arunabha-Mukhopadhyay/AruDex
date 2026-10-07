@@ -21,7 +21,7 @@ model = ChatGoogleGenerativeAI(
     model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
     temperature=0.1,
     google_api_key=os.getenv("GEMINI_API_KEY"),
-    max_retries=5
+    max_retries=0
 )
 
 
