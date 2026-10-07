@@ -1,6 +1,7 @@
 import json
 from typing import Any, Dict, Optional
 
+from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -9,12 +10,18 @@ import os
 
 load_dotenv()
 
-model = ChatGoogleGenerativeAI(
-    model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
-    temperature=0.1,
-    google_api_key=os.getenv("GEMINI_API_KEY"),
-    max_retries=5
+model = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    temperature=0.2,
+    api_key=os.getenv("GROQ_API_KEY")
 )
+
+# model = ChatGoogleGenerativeAI(
+#     model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+#     temperature=0.1,
+#     google_api_key=os.getenv("GEMINI_API_KEY"),
+#     max_retries=5
+# )
 
 
 class StrategyDecision(BaseModel):

@@ -126,6 +126,10 @@ app.post('/api/amm', async (req, res) => {
     let execution = null;
     try {
       strategy = await requestStrategy(poolLogs, ammLogs);
+      
+      // Delay for 1.5 seconds to prevent free-tier API burst rate limits (429 errors)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
       execution = await requestExecution(strategy, poolLogs, ammLogs);
     } catch (agentError) {
       console.warn("Agent unavailable:", agentError.message);
