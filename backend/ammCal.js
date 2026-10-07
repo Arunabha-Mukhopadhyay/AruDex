@@ -340,10 +340,17 @@ export const ammCalculation = async(req) => {
   let amountOut_MultiHop = 0n;
 
   if (!usdt.isStale && !usdt_usdc.isStale) {
+    // wethUsdt pool: token0=WETH, token1=USDT
+    //   → selling WETH (reserve0), buying USDT (reserve1)
+    //   → Multi_Hop expects reserveIn as reserve1, so we FLIP: reserve0=usdtReserve1, reserve1=usdtReserve0
+    //
+    // usdtUsdc pool: token0=USDC, token1=USDT
+    //   → selling USDT (reserve1), buying USDC (reserve0)
+    //   → Multi_Hop hop2 uses reserve0 as reserveIn, so we FLIP: reserve0=usdtUsdcReserve1, reserve1=usdtUsdcReserve0
     amountOut_MultiHop = await Multi_Hop(
       oneEth,
-      { reserve0: usdtReserve0, reserve1: usdtReserve1 },
-      { reserve0: usdtUsdcReserve0, reserve1: usdtUsdcReserve1 }
+      { reserve0: usdtReserve1, reserve1: usdtReserve0 },       // hop1: sell WETH → get USDT
+      { reserve0: usdtUsdcReserve1, reserve1: usdtUsdcReserve0 } // hop2: sell USDT → get USDC
     );
   } else {
     console.log("Skipping multi-hop: stale pool detected");
