@@ -13,19 +13,19 @@ from tools.Approve_tool import approve_token, estimate_gas
 
 load_dotenv()
 
-model = ChatGroq(
-    model="llama3-8b-8192",
-    temperature=0.2,
-    api_key=os.getenv("GROQ_API_KEY"),
-    max_retries=5
-)
-
-# model = ChatGoogleGenerativeAI(
-#     model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+# model = ChatGroq(
+#     model="llama3-8b-8192",
 #     temperature=0.2,
-#     google_api_key=os.getenv("GEMINI_API_KEY"),
+#     api_key=os.getenv("GROQ_API_KEY"),
 #     max_retries=5
 # )
+
+model = ChatGoogleGenerativeAI(
+    model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+    temperature=0.2,
+    google_api_key=os.getenv("GEMINI_API_KEY"),
+    max_retries=5
+)
 
 
 

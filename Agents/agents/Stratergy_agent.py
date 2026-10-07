@@ -10,19 +10,19 @@ import os
 
 load_dotenv()
 
-model = ChatGroq(
-    model="llama3-8b-8192",
-    temperature=0.2,
-    api_key=os.getenv("GROQ_API_KEY"),
-    max_retries=5
-)
-
-# model = ChatGoogleGenerativeAI(
-#     model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
-#     temperature=0.1,
-#     google_api_key=os.getenv("GEMINI_API_KEY"),
+# model = ChatGroq(
+#     model="llama3-8b-8192",
+#     temperature=0.2,
+#     api_key=os.getenv("GROQ_API_KEY"),
 #     max_retries=5
 # )
+
+model = ChatGoogleGenerativeAI(
+    model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+    temperature=0.1,
+    google_api_key=os.getenv("GEMINI_API_KEY"),
+    max_retries=5
+)
 
 
 class StrategyDecision(BaseModel):
