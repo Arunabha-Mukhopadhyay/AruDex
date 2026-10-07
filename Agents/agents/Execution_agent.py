@@ -1,5 +1,5 @@
 # from langchain_ollama import ChatOllama
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -12,10 +12,10 @@ from tools.Approve_tool import approve_token, estimate_gas
 
 load_dotenv()
 
-model = ChatGroq(
-    model="llama3-8b-8192",
+model = ChatGoogleGenerativeAI(
+    model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
     temperature=0.2,
-    api_key=os.getenv("GROQ_API_KEY"),
+    google_api_key=os.getenv("GEMINI_API_KEY"),
     max_retries=5
 )
 

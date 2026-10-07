@@ -144,7 +144,7 @@ Built-in retry logic with exponential backoff (1s → 2s → 4s) on 429 response
 - Python 3.10+
 - A free [Alchemy](https://alchemy.com) API key
 - A free [Birdeye](https://bds.birdeye.so) API key
-- A free [Groq](https://console.groq.com) API key
+- A Google Gemini API key
 
 ### 1. Clone & install dependencies
 
@@ -176,7 +176,8 @@ BIRDEYE_MIN_VOLUME_24H_USD=100000
 BIRDEYE_MAX_ABS_PRICE_CHANGE_24H=80
 
 # Agents/.env
-GROQ_API_KEY=your-groq-key
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
 NODE_BACKEND_URL=http://127.0.0.1:3000
 
 # Frontend/dex_frontend/.env

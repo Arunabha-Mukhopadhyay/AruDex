@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, Optional
 
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -9,11 +9,10 @@ import os
 
 load_dotenv()
 
-# Change from llama-3.3-70b-versatile to:
-model = ChatGroq(
-    model="llama3-8b-8192",
+model = ChatGoogleGenerativeAI(
+    model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
     temperature=0.1,
-    api_key=os.getenv("GROQ_API_KEY"),
+    google_api_key=os.getenv("GEMINI_API_KEY"),
     max_retries=5
 )
 

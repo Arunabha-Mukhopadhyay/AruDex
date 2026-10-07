@@ -10,4 +10,4 @@ fastapi
 uvicorn
 langchain-ollama
 python-dotenv
-langchain-groq
+langchain-google-genai
