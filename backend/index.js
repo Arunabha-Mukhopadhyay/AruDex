@@ -4,6 +4,7 @@ import cors from 'cors'
 import { STRATEGY_AGENT_URL } from './config.js'
 import { EXECUTION_AGENT_URL } from './config.js'
 import { ammCalculation, executeSwap, estimateSwapGas } from './ammCal.js'
+import { startScanner } from './scanner.js'
 
 const app = express()
 
@@ -160,4 +161,5 @@ app.post('/api/amm', async (req, res) => {
 const port = (process.env.PORT) || 3000;
 app.listen(port, () => {
   console.log(`app is running at port ${port}`);
+  startScanner(10);
 });

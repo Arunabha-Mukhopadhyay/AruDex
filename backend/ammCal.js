@@ -291,18 +291,21 @@ const buildPriceValidationLog = async ({ uniswapSpotPrice, sushiswapSpotPrice })
 };
 
 
-export const ammCalculation = async(req) => {
+export const ammCalculation = async(reqOrAmount) => {
   // const amount = ethers.formatEther(1)
   // const oneEth = ethers.formatEther(20)
 
   // const { amount, oneEth: oneEthStr } = req.body;
   // const amountIn = ethers.parseEther(amount);
 
-  if (!req?.body?.oneEth) {
+  let oneEthStr;
+  if (reqOrAmount?.body?.oneEth) {
+    oneEthStr = reqOrAmount.body.oneEth.toString();
+  } else if (reqOrAmount) {
+    oneEthStr = reqOrAmount.toString();
+  } else {
     throw new Error("oneEth is required");
   }
-
-  const oneEthStr = req.body.oneEth;
   const oneEth = ethers.parseEther(oneEthStr);
   const birdeyeDiscovery = await buildBirdeyeTokenDiscovery();
 
