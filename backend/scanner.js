@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { ammCalculation } from './ammCal.js';
-import { STRATEGY_AGENT_URL, EXECUTION_AGENT_URL } from './config.js';
+import { STRATEGY_AGENT_URL, EXECUTION_AGENT_URL, NOTIFY_AGENT_URL } from './config.js';
 
 export const scannerEmitter = new EventEmitter();
 
@@ -78,10 +78,30 @@ export const startScanner = (scanAmountEth) => {
           amm_logs: trimmedAmmLogs
         });
         
-        console.log("[Scanner] Execution blueprint ready! Emitting event...");
+        console.log("[Scanner] Execution blueprint ready! Notifying operators...");
+        let notificationResult = null;
+        try {
+          notificationResult = await fetchAgentWithRetry(NOTIFY_AGENT_URL, {
+            strategy: strategyOutput,
+            execution: executionBlueprint,
+            pool_logs: trimmedPoolLogs,
+            amm_logs: trimmedAmmLogs,
+            detected_at: new Date().toISOString()
+          }, 2, 2000);
+          console.log("[Scanner] Notification agent completed:", notificationResult);
+        } catch (notifyError) {
+          notificationResult = {
+            ok: false,
+            error: notifyError.message
+          };
+          console.warn("[Scanner] Notification agent failed:", notifyError.message);
+        }
+
+        console.log("[Scanner] Emitting arbitrage event...");
         scannerEmitter.emit('arbitrageFound', {
           strategy: strategyOutput,
-          execution: executionBlueprint
+          execution: executionBlueprint,
+          notification: notificationResult
         });
       } else {
         console.log(`[Scanner] No profitable arbitrage found. Best route: ${strategyOutput?.best_route || 'Unknown'}`);
