@@ -9,6 +9,7 @@ services:
       PROVIDER_URL: http://hardhat:8545
       STRATEGY_AGENT_URL: http://agents:5000/api/strategy
       EXECUTION_AGENT_URL: http://agents:5000/api/execution
+      NOTIFY_AGENT_URL: http://agents:5000/api/notify
     depends_on:
       - hardhat
       - agents

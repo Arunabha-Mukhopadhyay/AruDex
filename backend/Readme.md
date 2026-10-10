@@ -99,7 +99,7 @@ Implemented:
 ## Environment Variables
 
 - `PROVIDER_URL` – JSON-RPC URL for pool reads/swap simulation
-- `STRATEGY_AGENT_URL`, `EXECUTION_AGENT_URL` – Agent endpoints
+- `STRATEGY_AGENT_URL`, `EXECUTION_AGENT_URL`, `NOTIFY_AGENT_URL` – Agent endpoints
 - `BIRDEYE_API_KEY` – enables Birdeye integration
 - `BIRDEYE_CHAIN` – Birdeye chain header (default `ethereum`)
 - `BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT` – alert threshold for pool-vs-oracle price gap

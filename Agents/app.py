@@ -1,11 +1,12 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agents import StrategyDecision, stratergy_agent
 from agents import ExecutionPlan, Execution_agent
+from agents import NotificationResult, notification_agent
 
 app = FastAPI()
 
@@ -34,9 +35,32 @@ class ExecutionRequest(BaseModel):
     amm_logs: Dict[str, Any]
 
 
+class NotificationRequest(BaseModel):
+    strategy: Dict[str, Any]
+    execution: Dict[str, Any]
+    pool_logs: Dict[str, Any] = Field(default_factory=dict)
+    amm_logs: Dict[str, Any] = Field(default_factory=dict)
+    detected_at: Optional[str] = None
+
+
 @app.get("/health")
 async def health_check() -> Dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/")
+async def root() -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "AruDex Cognitive Agents API",
+        "endpoints": [
+            "/health",
+            "/api/strategy",
+            "/api/execution",
+            "/api/notify",
+            "/docs",
+        ],
+    }
 
 
 @app.post("/api/strategy", response_model=StrategyDecision)
@@ -51,6 +75,14 @@ async def generate_strategy(payload: StrategyRequest) -> StrategyDecision:
 async def execute_sim(payload:ExecutionRequest) -> ExecutionPlan:
     try:
         return Execution_agent(payload.strategy_output,payload.amm_logs,payload.pool_logs)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/notify", response_model=NotificationResult)
+async def notify(payload: NotificationRequest) -> NotificationResult:
+    try:
+        return notification_agent(payload.dict())
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

@@ -168,6 +168,7 @@ ALCHEMY_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
 PROVIDER_URL=http://127.0.0.1:8545
 STRATEGY_AGENT_URL=http://127.0.0.1:8000/api/strategy
 EXECUTION_AGENT_URL=http://127.0.0.1:8000/api/execution
+NOTIFY_AGENT_URL=http://127.0.0.1:8000/api/notify
 BIRDEYE_API_KEY=your-birdeye-key
 BIRDEYE_CHAIN=ethereum
 BIRDEYE_PRICE_DEVIATION_THRESHOLD_PCT=3
@@ -177,7 +178,11 @@ BIRDEYE_MAX_ABS_PRICE_CHANGE_24H=80
 
 # Agents/.env
 GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.8-flash
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+GMAIL_USER=your-sender@gmail.com
+GMAIL_PASS=your-16-character-google-app-password
+NOTIFY_EMAIL=recipient@example.com
 NODE_BACKEND_URL=http://127.0.0.1:3000
 
 # Frontend/dex_frontend/.env
