@@ -21,6 +21,7 @@ dotenv.config();
 export const PROVIDER_URL = process.env.PROVIDER_URL || "http://hardhat:8545";
 export const STRATEGY_AGENT_URL = process.env.STRATEGY_AGENT_URL || "http://agents:5000/api/strategy";
 export const EXECUTION_AGENT_URL = process.env.EXECUTION_AGENT_URL || "http://agents:5000/api/execution";
+export const NOTIFY_AGENT_URL = process.env.NOTIFY_AGENT_URL || "http://agents:5000/api/notify";
 
 const parseNumberEnv = (value, fallback) => {
   const parsed = Number(value);
