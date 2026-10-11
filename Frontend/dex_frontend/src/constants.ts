@@ -1,4 +1,4 @@
-import { erc20Abi, type Address } from "viem";
+import type { Address } from "viem";
 
 // Mainnet addresses (also valid on a mainnet fork such as Hardhat/Anvil).
 export const ROUTERS: Record<string, Address> = {
@@ -27,4 +27,3 @@ export const routerAbi = [
   },
 ] as const;
 
-export { erc20Abi };
