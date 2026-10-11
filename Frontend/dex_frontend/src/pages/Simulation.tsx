@@ -11,7 +11,7 @@ function Simulation() {
   const [simulatedEth, setSimulatedEth] = useState("");
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const trade = useTradeExecutor();
-  const { chain } = useAccount();
+  const { chain, isConnected } = useAccount();
   const execution = data?.execution as ExecutionPlan | undefined;
   const canExecute = !!execution && EXECUTABLE_ACTIONS.includes(execution.action);
   const [error, setError] = useState<string | null>(null);
@@ -102,10 +102,11 @@ function Simulation() {
             type="button"
             className="btn-execute"
             onClick={() => void trade.execute(execution, simulatedEth)}
-            disabled={trade.running}
+            disabled={trade.running || !isConnected}
           >
             {trade.running ? "Executing…" : `Execute Trade (${simulatedEth} ETH)`}
           </button>
+          {!isConnected && <p className="execute-status">Connect your wallet to execute this trade.</p>}
           {trade.status && <p className="execute-status">{trade.status}</p>}
           {trade.hashes.length > 0 && (
             <ol className="tx-list">
