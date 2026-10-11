@@ -210,6 +210,16 @@ cd Frontend/dex_frontend && npm run dev
 ### 4. Test
 Open `http://localhost:5173`, enter an ETH amount, click **Simulate**.
 
+### 5. Execute a trade (on a fork)
+When the Execution Agent returns `SINGLE_SWAP` or `MULTI_HOP_SWAP`, an **Execute Trade** button appears under the response.
+
+1. In MetaMask, add a network: RPC `http://127.0.0.1:8545`, chain ID `31337`.
+2. Import one of the funded accounts printed by `npx hardhat node`.
+3. Connect the wallet, simulate, then click **Execute Trade**. MetaMask asks you to sign each step (approve → swap) in order.
+4. Transaction hashes are listed under the button (linked to Etherscan on mainnet).
+
+The frontend never trusts the AI plan blindly: the router, every token in the path, and approve spenders must match known mainnet addresses, and the ETH amount comes from your input, not the LLM. Run `npm run check` in `Frontend/dex_frontend` to verify this validation.
+
 ---
 
 ## Deployment (Render)
