@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { useAccount } from "wagmi";
 import { useTradeExecutor } from "../useTradeExecutor";
 import type { ExecutionPlan } from "../execution";
 
@@ -10,6 +11,7 @@ function Simulation() {
   const [simulatedEth, setSimulatedEth] = useState("");
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const trade = useTradeExecutor();
+  const { chain } = useAccount();
   const execution = data?.execution as ExecutionPlan | undefined;
   const canExecute = !!execution && EXECUTABLE_ACTIONS.includes(execution.action);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +107,21 @@ function Simulation() {
             {trade.running ? "Executing…" : `Execute Trade (${simulatedEth} ETH)`}
           </button>
           {trade.status && <p className="execute-status">{trade.status}</p>}
+          {trade.hashes.length > 0 && (
+            <ol className="tx-list">
+              {trade.hashes.map((hash) => (
+                <li key={hash}>
+                  {chain?.blockExplorers ? (
+                    <a href={`${chain.blockExplorers.default.url}/tx/${hash}`} target="_blank" rel="noreferrer">
+                      {hash}
+                    </a>
+                  ) : (
+                    <code>{hash}</code>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
           {trade.error && (
             <div className="alert-error" role="alert">
               {trade.error}
