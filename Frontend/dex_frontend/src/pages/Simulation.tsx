@@ -100,7 +100,7 @@ function Simulation() {
         <div className="execute-block">
           <button
             type="button"
-            className="btn-execute"
+            className="btn-primary btn-execute"
             onClick={() => void trade.execute(execution, simulatedEth)}
             disabled={trade.running || !isConnected}
           >

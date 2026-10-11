@@ -435,3 +435,30 @@ pre.code-block {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-dim);
 }
+
+.execute-block {
+  margin-top: 1.25rem;
+}
+
+.btn-execute {
+  background: linear-gradient(135deg, var(--violet) 0%, #7c5cf0 100%);
+  box-shadow: 0 4px 24px var(--violet-soft);
+}
+
+.execute-status {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.tx-list {
+  margin-top: 0.75rem;
+  padding-left: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.tx-list a {
+  color: var(--accent);
+}
