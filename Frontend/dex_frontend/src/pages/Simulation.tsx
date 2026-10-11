@@ -61,6 +61,7 @@ function Simulation() {
         <p className="panel-desc">
           Enter an ETH amount and send a POST request to <code>/api/amm </code>to simulate a swap.
           The response shows real-time pool data, estimated output (USDC), and slippage, helping you understand the trade before execution.
+          If the AI returns an executable plan, connect MetaMask and press <strong>Execute Trade</strong> to sign it.
         </p>
       </div>
 
