@@ -57,5 +57,11 @@ export function useTradeExecutor() {
     }
   };
 
-  return { execute, hashes, status, error, running };
+  const reset = () => {
+    setHashes([]);
+    setStatus(null);
+    setError(null);
+  };
+
+  return { execute, reset, hashes, status, error, running };
 }

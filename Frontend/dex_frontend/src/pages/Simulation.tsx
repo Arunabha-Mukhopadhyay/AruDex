@@ -48,6 +48,7 @@ function Simulation() {
     setLoading(true);
     setError(null);
     setData(null);
+    trade.reset();
     void fetchData();
   };
 
