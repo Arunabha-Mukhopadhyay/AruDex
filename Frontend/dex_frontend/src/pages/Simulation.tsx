@@ -1,9 +1,17 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { useTradeExecutor } from "../useTradeExecutor";
+import type { ExecutionPlan } from "../execution";
+
+const EXECUTABLE_ACTIONS = ["SINGLE_SWAP", "MULTI_HOP_SWAP"];
 
 function Simulation() {
   const [oneEth, setOneEth] = useState("");
+  const [simulatedEth, setSimulatedEth] = useState("");
   const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const trade = useTradeExecutor();
+  const execution = data?.execution as ExecutionPlan | undefined;
+  const canExecute = !!execution && EXECUTABLE_ACTIONS.includes(execution.action);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,6 +33,7 @@ function Simulation() {
       }
 
       setData(res.data);
+      setSimulatedEth(oneEth);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Request failed";
       setError(message);
@@ -82,6 +91,25 @@ function Simulation() {
         <div className="output-block">
           <div className="output-label">Response</div>
           <pre className="code-block">{JSON.stringify(data, null, 2)}</pre>
+        </div>
+      )}
+
+      {canExecute && (
+        <div className="execute-block">
+          <button
+            type="button"
+            className="btn-execute"
+            onClick={() => void trade.execute(execution, simulatedEth)}
+            disabled={trade.running}
+          >
+            {trade.running ? "Executing…" : `Execute Trade (${simulatedEth} ETH)`}
+          </button>
+          {trade.status && <p className="execute-status">{trade.status}</p>}
+          {trade.error && (
+            <div className="alert-error" role="alert">
+              {trade.error}
+            </div>
+          )}
         </div>
       )}
     </section>
