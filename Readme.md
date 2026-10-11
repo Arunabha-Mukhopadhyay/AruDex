@@ -79,8 +79,11 @@ AruDex/
 ├── Frontend/dex_frontend/    # React + Vite + wagmi client
 │   └── src/
 │       ├── App.tsx            # Wallet connection + app shell
-│       ├── Config.tsx         # wagmi/viem configuration
-│       └── pages/Simulation.tsx  # Swap simulation UI
+│       ├── Config.tsx         # wagmi/viem configuration (mainnet + Hardhat fork)
+│       ├── constants.ts       # Router/token addresses + router ABI
+│       ├── execution.ts       # Validates AI plan → transactions
+│       ├── useTradeExecutor.ts   # Signs plan steps sequentially via MetaMask
+│       └── pages/Simulation.tsx  # Swap simulation + Execute Trade UI
 ├── contracts/                # Solidity contracts (Hardhat scaffolding)
 ├── hardhat.config.ts         # Mainnet fork at block 21,830,000
 ├── docker-compose.yml        # Full-stack local orchestration
