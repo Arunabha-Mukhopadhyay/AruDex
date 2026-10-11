@@ -194,6 +194,15 @@ body {
   max-width: 100%;
 }
 
+.network-pill {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .btn-disconnect {
   font-family: var(--font-sans);
   font-size: 0.8125rem;
