@@ -1,9 +1,19 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { useAccount } from "wagmi";
+import { useTradeExecutor } from "../useTradeExecutor";
+import type { ExecutionPlan } from "../execution";
+
+const EXECUTABLE_ACTIONS = ["SINGLE_SWAP", "MULTI_HOP_SWAP"];
 
 function Simulation() {
   const [oneEth, setOneEth] = useState("");
+  const [simulatedEth, setSimulatedEth] = useState("");
   const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const trade = useTradeExecutor();
+  const { chain, isConnected } = useAccount();
+  const execution = data?.execution as ExecutionPlan | undefined;
+  const canExecute = !!execution && EXECUTABLE_ACTIONS.includes(execution.action);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,6 +35,7 @@ function Simulation() {
       }
 
       setData(res.data);
+      setSimulatedEth(oneEth);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Request failed";
       setError(message);
@@ -37,6 +48,7 @@ function Simulation() {
     setLoading(true);
     setError(null);
     setData(null);
+    trade.reset();
     void fetchData();
   };
 
@@ -49,6 +61,7 @@ function Simulation() {
         <p className="panel-desc">
           Enter an ETH amount and send a POST request to <code>/api/amm </code>to simulate a swap.
           The response shows real-time pool data, estimated output (USDC), and slippage, helping you understand the trade before execution.
+          If the AI returns an executable plan, connect MetaMask and press <strong>Execute Trade</strong> to sign it.
         </p>
       </div>
 
@@ -82,6 +95,41 @@ function Simulation() {
         <div className="output-block">
           <div className="output-label">Response</div>
           <pre className="code-block">{JSON.stringify(data, null, 2)}</pre>
+        </div>
+      )}
+
+      {canExecute && (
+        <div className="execute-block">
+          <button
+            type="button"
+            className="btn-primary btn-execute"
+            onClick={() => void trade.execute(execution, simulatedEth)}
+            disabled={trade.running || !isConnected}
+          >
+            {trade.running ? "Executing…" : `Execute Trade (${simulatedEth} ETH)`}
+          </button>
+          {!isConnected && <p className="execute-status">Connect your wallet to execute this trade.</p>}
+          {trade.status && <p className="execute-status">{trade.status}</p>}
+          {trade.hashes.length > 0 && (
+            <ol className="tx-list">
+              {trade.hashes.map((hash) => (
+                <li key={hash}>
+                  {chain?.blockExplorers ? (
+                    <a href={`${chain.blockExplorers.default.url}/tx/${hash}`} target="_blank" rel="noreferrer">
+                      {hash}
+                    </a>
+                  ) : (
+                    <code>{hash}</code>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+          {trade.error && (
+            <div className="alert-error" role="alert">
+              {trade.error}
+            </div>
+          )}
         </div>
       )}
     </section>

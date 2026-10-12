@@ -11,13 +11,14 @@ function shortAddress(address: string) {
 }
 
 function WalletConnector() {
-  const { isConnected, address } = useAccount();
+  const { isConnected, address, chain } = useAccount();
   const { connectors, connect } = useConnect();
   const { disconnect } = useDisconnect();
 
   if (isConnected && address) {
     return (
       <div className="wallet-connected">
+        <span className="network-pill">{chain?.name ?? "Unsupported network"}</span>
         <span className="address-pill" title={address}>
           {shortAddress(address)}
         </span>
