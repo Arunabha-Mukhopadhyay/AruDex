@@ -14,8 +14,8 @@ from tools.Approve_tool import approve_token, estimate_gas
 load_dotenv()
 
 model = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0.2,
+    model="openai/gpt-oss-120b",
+    temperature=0.1,
     api_key=os.getenv("GROQ_API_KEY"),
     max_retries=0
 )
