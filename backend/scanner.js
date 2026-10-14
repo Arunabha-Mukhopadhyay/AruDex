@@ -61,6 +61,17 @@ export const startScanner = (scanAmountEth) => {
 
       const { trimmedPoolLogs, trimmedAmmLogs } = trimPayload(poolLogs, ammLogs);
 
+      // Pre-check: if arbitrage is impossible (stale pool or no positive profit), do NOT burn LLM tokens
+      const arbLogs = trimmedAmmLogs?.arb;
+      const isStale = trimmedPoolLogs?.uniswapEthUsdc?.isStale || trimmedPoolLogs?.sushiswapEthUsdc?.isStale;
+      const hasNetProfit = arbLogs && (parseFloat(arbLogs?.uni_to_sushi?.netProfit || 0) > 5 || parseFloat(arbLogs?.sushi_to_uni?.netProfit || 0) > 5);
+
+      if (isStale || !hasNetProfit) {
+        console.log(`[Scanner] Arbitrage pre-check: skipped (stale=${Boolean(isStale)}, profitable=${Boolean(hasNetProfit)}). Preserving LLM tokens.`);
+        setTimeout(scanLoop, 60000);
+        return;
+      }
+
       const strategyOutput = await fetchAgentWithRetry(STRATEGY_AGENT_URL, {
         pool_logs: trimmedPoolLogs,
         amm_logs: trimmedAmmLogs

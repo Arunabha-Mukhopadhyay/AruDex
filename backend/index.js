@@ -128,8 +128,8 @@ app.post('/api/amm', async (req, res) => {
     try {
       strategy = await requestStrategy(poolLogs, ammLogs);
       
-      // Delay for 1.5 seconds to prevent free-tier API burst rate limits (429 errors)
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Delay for 3 seconds to allow Groq token-per-minute bucket to refill
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       execution = await requestExecution(strategy, poolLogs, ammLogs);
     } catch (agentError) {
