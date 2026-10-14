@@ -14,7 +14,7 @@ model = ChatGroq(
     model="openai/gpt-oss-120b",
     temperature=0.1,
     api_key=os.getenv("GROQ_API_KEY"),
-    max_retries=0
+    max_retries=2
 )
 
 # model = ChatGoogleGenerativeAI(
@@ -112,142 +112,13 @@ def strategy_agent(pool_logs: Dict[str, Any], amm_logs: Dict[str, Any]) -> Strat
     logs_blob = _format_logs(pool_logs, amm_logs, arb_result)
 
     messages = [
-
-        SystemMessage(content="""
-You are an advanced deterministic DeFi routing engine.
-
-Your job is to select the SINGLE best execution strategy using ONLY the provided logs.
-
-════════════════════════════════════
-STRICT RULES
-════════════════════════════════════
-- DO NOT hallucinate
-- DO NOT assume missing values
-- DO NOT recompute AMM math
-- ONLY use numbers from JSON
-- If inconsistency → return NONE
-
-════════════════════════════════════
-AVAILABLE ROUTES
-════════════════════════════════════
-UNISWAP
-SUSHISWAP
-SPLIT
-MULTI_HOP
-ARBITRAGE
-NONE
-
-════════════════════════════════════
-POOL VALIDITY
-════════════════════════════════════
-A pool is VALID if:
-- isStale == false
-
-INVALID if:
-- isStale == true
-
-════════════════════════════════════
-METRICS (FROM BACKEND)
-════════════════════════════════════
-UNISWAP:
-- amm_logs.uniswap.effectiveOutput
-
-SUSHISWAP:
-- amm_logs.sushiswap.effectiveOutput
-
-SPLIT:
-- amm_logs.totalUsdcOutput
-
-MULTI_HOP:
-- amm_logs.multiHopOutput
-
-ARBITRAGE:
-- USE arb_result ONLY
-- DO NOT recompute
-
-════════════════════════════════════
-ARBITRAGE PRIORITY (HIGHEST)
-════════════════════════════════════
-IF arb_result.arb == true:
-→ ALWAYS select ARBITRAGE
-→ IGNORE everything else
-→ arb_details MUST equal arb_result EXACTLY
-
-════════════════════════════════════
-ROUTE VALIDATION
-════════════════════════════════════
-UNISWAP → uniswapEthUsdc valid
-SUSHISWAP → sushiswapEthUsdc valid
-SPLIT → BOTH valid
-MULTI_HOP → wethDai + daiUsdc valid
-
-════════════════════════════════════
-SELECTION LOGIC
-════════════════════════════════════
-1. Check ARBITRAGE
-2. Remove invalid routes
-3. Compare outputs
-4. Choose highest
-
-════════════════════════════════════
-TIE BREAK (≤0.5%)
-════════════════════════════════════
-UNISWAP > SUSHISWAP > SPLIT > MULTI_HOP
-
-════════════════════════════════════
-SPLIT RULE
-════════════════════════════════════
-- Only if BOTH pools valid
-- Only if improvement ≥ 0.5%
-- split must sum to EXACTLY 100
-
-════════════════════════════════════
-OUTPUT FORMAT (STRICT JSON)
-════════════════════════════════════
-{
-  "best_route": "...",
-  "split": null OR {...},
-  "reason": "...",
-  "arb_details": {...} OR null
-}
-
-════════════════════════════════════
-FAILSAFE
-════════════════════════════════════
-If ANY inconsistency → return:
-{
-  "best_route": "NONE",
-  "split": null,
-  "reason": "Inconsistent or insufficient data",
-  "arb_details": null
-}
-"""),
-        HumanMessage(content=f"""
-Analyze the following DeFi execution logs and determine the optimal strategy.
-
-STEPS:
-1. Evaluate arbitrage using arb_result
-2. If arbitrage exists → SELECT ARBITRAGE
-3. Otherwise:
-   - Validate pools
-   - Compare outputs:
-     • Uniswap → effectiveOutput
-     • Sushi → effectiveOutput
-     • Split → totalUsdcOutput
-     • Multi-hop → multiHopOutput
-4. Apply tie-break rules if needed
-5. If SPLIT → compute exact % allocation
-
-IMPORTANT:
-- Use ONLY provided numbers
-- DO NOT recompute anything
-- Be deterministic
-
-DATA:
-{logs_blob}
-
-Return ONLY JSON.
-""")
+        SystemMessage(content="""You are a deterministic DeFi routing engine. Choose the single best swap strategy using only provided numbers.
+Rules:
+1. If arb_result.arb == true -> select ARBITRAGE and set arb_details = arb_result.
+2. Otherwise, ignore stale pools (isStale == true). Compare effectiveOutput of valid pools (Uniswap, Sushiswap, Multi-Hop, Split).
+3. Select route with highest effective output. If tie (<=0.5%), prefer UNISWAP > SUSHISWAP > SPLIT > MULTI_HOP.
+4. Output must match StrategyDecision schema."""),
+        HumanMessage(content=f"Logs:\n{logs_blob}")
     ]
 
     response = structured_model_dex.invoke(messages)
