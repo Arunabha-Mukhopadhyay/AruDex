@@ -21,39 +21,88 @@
 
 ```mermaid
 flowchart LR
-    subgraph User
-        FE["Frontend\n(React + Vite)\narudex.onrender.com"]
+    %% -------------------------------------------------------------
+    %% 1. USER & CLIENT INTERFACE
+    %% -------------------------------------------------------------
+    subgraph S1["1. Client Tier (React + Wagmi)"]
+        direction TB
+        UI["AruDex Dashboard\n(React 19 + Vite)"]
+        GUARD["Security Whitelist Guard\n(execution.ts)"]
+        METAMASK["MetaMask Wallet\n(Viem / Wagmi)"]
     end
 
-    subgraph Backend["Backend (Node.js + Express)"]
-        API["POST /api/amm"]
-        AMM["ammCal.js\nAMM Math + Routing"]
-        POOL["pool.js\nPool Reserve Reader"]
-        BE["birdeye.js\nToken Discovery\n+ Price Validation"]
+    %% -------------------------------------------------------------
+    %% 2. BACKEND & MATHEMATICAL AMM ENGINE
+    %% -------------------------------------------------------------
+    subgraph S2["2. Core Backend Tier (Node.js)"]
+        direction TB
+        API["Express Gateway\n(POST /api/amm)"]
+        AMM["AMM Math Engine (ammCal.js)\n- Constant Product Math\n- 50-Block Staleness Filter\n- Binary Split & Multi-Hop"]
+        SCANNER["24/7 Background Scanner\n(scanner.js)"]
     end
 
-    subgraph Agents["Agents (Python + FastAPI)"]
-        SA["Strategy Agent\nRoute Selection"]
-        EA["Execution Agent\nSwap Plan Assembly"]
+    %% -------------------------------------------------------------
+    %% 3. MULTI-AGENT COGNITIVE PIPELINE
+    %% -------------------------------------------------------------
+    subgraph S3["3. AI Multi-Agent Cluster (FastAPI)"]
+        direction TB
+        STRATEGY["Strategy Agent\n(Evaluates pools & tie-breaks)"]
+        EXECUTION["Execution Agent\n(Constructs Wei & Router steps)"]
+        NOTIFIER["Notification Agent\n(Synthesizes human alert)"]
     end
 
-    subgraph External
-        ALCHEMY["Alchemy RPC\n(Mainnet / Hardhat)"]
-        BIRDEYE["Birdeye API\npublic-api.birdeye.so"]
-        GROQ["Groq LLM\nLlama 3.3 70B"]
+    %% -------------------------------------------------------------
+    %% 4. EXTERNAL DATA & INFRASTRUCTURE
+    %% -------------------------------------------------------------
+    subgraph S4["4. External Networks & Feeds"]
+        direction TB
+        ALCHEMY["Alchemy RPC\n(Ethereum Mainnet)"]
+        BIRDEYE["Birdeye Oracle API\n(Live Price Validation)"]
+        GROQ["Groq LLM Engine\n(Fast Structured Inference)"]
+        ALERTS["Alert Channels\n(Discord Webhook + Gmail)"]
     end
 
-    FE -->|"POST /api/amm\n{oneEth: '40'}"| API
-    API --> AMM
-    AMM --> POOL
-    AMM --> BE
-    POOL -->|"getReserves()\ngetAmountsOut()"| ALCHEMY
-    BE -->|"Trending, Listings\nPrice, Overview"| BIRDEYE
-    API -->|"poolLogs + ammLogs"| SA
-    SA -->|"StrategyDecision"| EA
-    EA -->|"ExecutionPlan"| API
-    SA & EA -->|"LLM inference"| GROQ
-    API -->|"JSON response"| FE
+    %% -------------------------------------------------------------
+    %% CLEAN SEQUENTIAL DATA FLOWS (LEFT TO RIGHT)
+    %% -------------------------------------------------------------
+    
+    %% User Simulation Flow
+    UI -->|"1. Simulate (14 ETH)"| API
+    API -->|"2. Run Math"| AMM
+    SCANNER -.->|"Background Polling"| AMM
+
+    %% On-Chain Data Fetching
+    AMM -->|"3. Read Reserves"| ALCHEMY
+    AMM -->|"4. Price Deviation"| BIRDEYE
+
+    %% Agent Reasoning Flow
+    AMM -->|"5. Trimmed Logs"| STRATEGY
+    STRATEGY -->|"6. Best Route"| EXECUTION
+    STRATEGY & EXECUTION <-->|"Inference"| GROQ
+
+    %% Background Arbitrage Alert Flow
+    SCANNER ==>|"If Arbitrage Found"| NOTIFIER
+    NOTIFIER ==>|"Push Notifications"| ALERTS
+
+    %% Execution Return & Broadcast Flow
+    EXECUTION -->|"7. Plan JSON"| API
+    API -->|"8. Render Plan"| UI
+    UI -->|"9. Click Execute"| GUARD
+    GUARD -->|"10. Validated Step"| METAMASK
+    METAMASK -->|"11. Broadcast Tx"| ALCHEMY
+
+    %% -------------------------------------------------------------
+    %% STYLING FOR MAXIMUM VISUAL CLARITY
+    %% -------------------------------------------------------------
+    classDef client fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff;
+    classDef backend fill:#111827,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef agents fill:#18181b,stroke:#a855f7,stroke-width:2px,color:#fff;
+    classDef external fill:#1f2937,stroke:#f59e0b,stroke-width:2px,color:#fff;
+
+    class UI,GUARD,METAMASK client;
+    class API,AMM,SCANNER backend;
+    class STRATEGY,EXECUTION,NOTIFIER agents;
+    class ALCHEMY,BIRDEYE,GROQ,ALERTS external;
 ```
 
 ---
