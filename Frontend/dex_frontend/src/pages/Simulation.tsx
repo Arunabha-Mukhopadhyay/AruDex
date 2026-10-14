@@ -71,6 +71,39 @@ function labelFromKey(key: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const TOKEN_DECIMALS: Record<string, number> = {
+  "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": 18, // WETH
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": 6,  // USDC
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": 6,  // USDT
+  "0x6b175474e89094c44da98b954eedeac495271d0f": 18, // DAI
+};
+
+function formatReserve(rawStr: string | null, tokenAddr: string | null) {
+  if (!rawStr || !tokenAddr) return rawStr ?? "Unavailable";
+  const addr = tokenAddr.toLowerCase();
+  const decimals = TOKEN_DECIMALS[addr] ?? 18;
+  const symbol = TOKEN_LABELS[addr] ?? "";
+  
+  try {
+    const raw = BigInt(rawStr);
+    const divisor = BigInt(10 ** decimals);
+    const whole = raw / divisor;
+    const remainder = raw % divisor;
+    const fraction = remainder.toString().padStart(decimals, "0").slice(0, 2);
+    const val = Number(`${whole}.${fraction}`);
+
+    if (val >= 1_000_000) {
+      return `${(val / 1_000_000).toFixed(2)}M ${symbol}`.trim();
+    }
+    if (val >= 1_000) {
+      return `${(val / 1_000).toFixed(2)}K ${symbol}`.trim();
+    }
+    return `${val.toFixed(2)} ${symbol}`.trim();
+  } catch {
+    return rawStr;
+  }
+}
+
 function actionLabel(value: string | null) {
   if (!value) return "No plan yet";
   return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
@@ -328,12 +361,16 @@ function Simulation() {
                 </div>
                 <dl className="pool-stats">
                   <div>
-                    <dt>Reserve 0</dt>
-                    <dd>{textAt(pool, "reserve0") ?? "Unavailable"}</dd>
+                    <dt>Reserve 0 ({compactAddress(textAt(pool, "token0"))})</dt>
+                    <dd title={textAt(pool, "reserve0") ?? undefined}>
+                      {formatReserve(textAt(pool, "reserve0"), textAt(pool, "token0"))}
+                    </dd>
                   </div>
                   <div>
-                    <dt>Reserve 1</dt>
-                    <dd>{textAt(pool, "reserve1") ?? "Unavailable"}</dd>
+                    <dt>Reserve 1 ({compactAddress(textAt(pool, "token1"))})</dt>
+                    <dd title={textAt(pool, "reserve1") ?? undefined}>
+                      {formatReserve(textAt(pool, "reserve1"), textAt(pool, "token1"))}
+                    </dd>
                   </div>
                 </dl>
               </article>
