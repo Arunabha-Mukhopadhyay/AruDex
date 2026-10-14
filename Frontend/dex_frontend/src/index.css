@@ -748,6 +748,39 @@ pre.code-block {
   gap: 0.65rem;
 }
 
+.execution-parameters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-top: 0.2rem;
+}
+
+.exec-param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.param-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.param-val {
+  font-size: 0.82rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .step-list {
   display: grid;
   gap: 0.5rem;
@@ -756,11 +789,27 @@ pre.code-block {
   list-style: none;
 }
 
-.step-list li {
+.step-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.step-header {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
+}
+
+.step-subtext {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  padding-left: 2rem;
 }
 
 .step-list span {
@@ -781,7 +830,7 @@ pre.code-block {
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 .price-grid {

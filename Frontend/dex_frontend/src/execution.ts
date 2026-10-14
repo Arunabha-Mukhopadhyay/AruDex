@@ -6,7 +6,15 @@ export type PlannedTx =
   | { kind: "swap"; router: Address; amountIn: bigint; minOut: bigint; path: Address[] };
 
 type Step = { function: string; args: unknown[] };
-export type ExecutionPlan = { action: string; dex: string; input_eth: string; steps: Step[] };
+export type ExecutionPlan = {
+  action: string;
+  dex: string;
+  input_eth: string;
+  expected_output?: string;
+  max_slippage?: number;
+  reason?: string;
+  steps: Step[];
+};
 
 const KNOWN_TOKENS = new Set(Object.values(TOKENS));
 const KNOWN_ROUTERS = new Set(Object.values(ROUTERS));

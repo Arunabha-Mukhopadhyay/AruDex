@@ -154,7 +154,7 @@ function Simulation() {
   const maxOutput = Math.max(...dexRows.map((dex) => dex.usdcOut ?? 0), numberAt(ammLogs, "multiHopOutput") ?? 0);
   const poolEntries = poolLogs
     ? Object.entries(poolLogs)
-        .filter(([, value]) => isRecord(value))
+        .filter(([key, value]) => isRecord(value) && key !== "birdeyeDiscovery")
         .map(([key, value]) => ({
           key,
           pool: value as JsonRecord,
@@ -361,14 +361,45 @@ function Simulation() {
               <div className="card-kicker">Execution</div>
               <div className="card-value compact-value">{actionLabel(execution?.action ?? null)}</div>
               {execution?.dex && <p className="muted-line">DEX: {execution.dex}</p>}
+              
+              {execution && (
+                <div className="execution-parameters">
+                  <div className="exec-param">
+                    <span className="param-label">Input</span>
+                    <strong className="param-val">{execution.input_eth ? `${execution.input_eth} ETH` : "—"}</strong>
+                  </div>
+                  <div className="exec-param">
+                    <span className="param-label">Expected Out</span>
+                    <strong className="param-val">{formatUsd(numberAt(execution as unknown as JsonRecord, "expected_output"))}</strong>
+                  </div>
+                  <div className="exec-param">
+                    <span className="param-label">Max Slippage</span>
+                    <strong className="param-val">{formatPercent(numberAt(execution as unknown as JsonRecord, "max_slippage"))}</strong>
+                  </div>
+                </div>
+              )}
+
               {executionSteps.length > 0 ? (
                 <ol className="step-list">
-                  {executionSteps.map((step, index) => (
-                    <li key={`${step.function}-${index}`}>
-                      <span>{index + 1}</span>
-                      <code>{step.function}</code>
-                    </li>
-                  ))}
+                  {executionSteps.map((step, index) => {
+                    let detail: string | null = null;
+                    if (step.function === "estimate_gas" && isRecord(step.args?.[0])) {
+                      const a = step.args[0] as JsonRecord;
+                      detail = `Check gas on ${a.dex || "DEX"}`;
+                    } else if (step.function === "swap_exact_eth_for_tokens" && Array.isArray(step.args)) {
+                      const dexName = step.args[0];
+                      detail = `Swap on ${dexName}`;
+                    }
+                    return (
+                      <li key={`${step.function}-${index}`} className="step-item">
+                        <div className="step-header">
+                          <span>{index + 1}</span>
+                          <code>{step.function}</code>
+                        </div>
+                        {detail && <div className="step-subtext">{detail}</div>}
+                      </li>
+                    );
+                  })}
                 </ol>
               ) : (
                 <p className="muted-line">{textAt(isRecord(execution) ? execution : null, "reason") ?? "No executable steps returned."}</p>
